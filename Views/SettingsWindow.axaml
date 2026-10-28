@@ -1,0 +1,123 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TVLauncher.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="450"
+        x:Class="TVLauncher.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="TVLauncher - Configuración"
+        Width="500" Height="450"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        Background="#121212">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" 
+                   Text="CONFIGURACIÓN" 
+                   FontSize="24" 
+                   FontWeight="Bold" 
+                   Foreground="White"
+                   Margin="0,0,0,20"/>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="20">
+                <!-- RAM -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Memoria RAM" 
+                               Foreground="White" 
+                               FontWeight="SemiBold"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                            <TextBlock Text="Mínimo (GB)" Foreground="#AAAAAA" FontSize="11"/>
+                            <NumericUpDown Value="{Binding MinRamGB}" Minimum="1" Maximum="32"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                            <TextBlock Text="Máximo (GB)" Foreground="#AAAAAA" FontSize="11"/>
+                            <NumericUpDown Value="{Binding MaxRamGB}" Minimum="1" Maximum="32"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Módulos -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Módulos" 
+                               Foreground="White" 
+                               FontWeight="SemiBold"/>
+                    <StackPanel Spacing="8">
+                        <CheckBox IsChecked="{Binding EnableModrinthStore}" 
+                                  Content="Habilitar tienda de Modrinth"
+                                  Foreground="White"/>
+                        <CheckBox IsChecked="{Binding EnableCosmetics}" 
+                                  Content="Habilitar sistema de cosméticos"
+                                  Foreground="White"/>
+                        <CheckBox IsChecked="{Binding AutoOptimizeMemory}" 
+                                  Content="Optimización automática de memoria"
+                                  Foreground="White"/>
+                        <CheckBox IsChecked="{Binding KeepLauncherOpen}" 
+                                  Content="Mantener launcher abierto al lanzar Minecraft"
+                                  Foreground="White"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Servidor SMP por defecto -->
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Servidor SMP por Defecto" 
+                               Foreground="White" 
+                               FontWeight="SemiBold"/>
+                    <StackPanel Spacing="8">
+                        <TextBox Text="{Binding DefaultSmpName}" 
+                                 Watermark="Nombre del servidor"
+                                 Background="#2D2D2D"
+                                 Foreground="White"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="80"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" 
+                                     Text="{Binding DefaultSmpIp}" 
+                                     Watermark="IP del servidor"
+                                     Background="#2D2D2D"
+                                     Foreground="White"
+                                     Margin="0,0,5,0"/>
+                            <NumericUpDown Grid.Column="1" 
+                                           Value="{Binding DefaultSmpPort}" 
+                                           Minimum="1" 
+                                           Maximum="65535"
+                                           Margin="5,0,0,0"/>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right"
+                    Spacing="10"
+                    Margin="0,20,0,0">
+            <Button Content="CANCELAR" 
+                    Click="OnCancelClick"
+                    Background="#2D2D2D"
+                    Foreground="White"
+                    Padding="30,10"/>
+            <Button Content="GUARDAR" 
+                    Command="{Binding SaveSettingsCommand}"
+                    Click="OnSaveClick"
+                    Background="#0078D4"
+                    Foreground="White"
+                    Padding="30,10"/>
+        </StackPanel>
+    </Grid>
+</Window>

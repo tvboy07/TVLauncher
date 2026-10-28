@@ -1,0 +1,31 @@
+# .gitignore for .NET / C# / Avalonia
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.log
+.vs/
+.idea/
+*.DotSettings.user
+*.nupkg
+*.snupkg
+TestResults/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.temp
+build_test.ps1
+debug*.txt
+view.txt
+out.txt
+AppData/
+.localhistory/
+ logs/
+tvlauncher_debug.txt
+*.ps1.user
+ui*.ps1
+uitest*.ps1
+shot*.ps1

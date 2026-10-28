@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="90"
+             x:Class="TVLauncher.Controls.AdsBanner">
+    <Border Background="#1E1E1E" 
+            BorderBrush="#3F3F3F" 
+            BorderThickness="1" 
+            CornerRadius="4"
+            Height="90"
+            Margin="10">
+        <Grid>
+            <TextBlock Text="ESPACIO PUBLICITARIO - ADS BANNER" 
+                       HorizontalAlignment="Center" 
+                       VerticalAlignment="Center"
+                       Foreground="#666666"
+                       FontSize="12"
+                       FontWeight="SemiBold"/>
+            <TextBlock Text="(Reservado para publicidad ligera)" 
+                       HorizontalAlignment="Center" 
+                       VerticalAlignment="Center"
+                       Foreground="#444444"
+                       FontSize="10"
+                       Margin="0,20,0,0"/>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,0 +1,201 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TVLauncher.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="using:TVLauncher.Controls"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
+        x:Class="TVLauncher.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="TVLauncher - Minecraft Launcher"
+        Width="1000" Height="600"
+        MinWidth="900" MinHeight="550"
+        WindowStartupLocation="CenterScreen"
+        Background="#121212">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="60"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="40"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#1E1E1E" BorderBrush="#3F3F3F" BorderThickness="0,0,0,1">
+            <Grid Margin="20,0">
+                <TextBlock Text="TVLauncher" 
+                           FontSize="24" 
+                           FontWeight="Bold" 
+                           Foreground="#FFFFFF"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left"/>
+                
+                <StackPanel Orientation="Horizontal" 
+                            HorizontalAlignment="Right" 
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <TextBlock Text="{Binding ActiveAccountName}" 
+                               Foreground="#AAAAAA"
+                               VerticalAlignment="Center"/>
+                    <Button Content="Cuenta" 
+                            Command="{Binding OpenAccountsCommand}"
+                            Background="#2D2D2D"
+                            Foreground="White"
+                            Padding="15,5"/>
+                    <Button Content="Configuración" 
+                            Command="{Binding OpenSettingsCommand}"
+                            Background="#2D2D2D"
+                            Foreground="White"
+                            Padding="15,5"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1" Margin="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Instances Panel -->
+            <Border Grid.Column="0" 
+                    Background="#1E1E1E" 
+                    BorderBrush="#3F3F3F" 
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Margin="0,0,10,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="40"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="50"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#252525" BorderBrush="#3F3F3F" BorderThickness="0,0,0,1">
+                        <TextBlock Text="INSTANCIAS" 
+                                   Foreground="#FFFFFF"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Margin="15,0"/>
+                    </Border>
+
+                    <ListBox Grid.Row="1" 
+                             ItemsSource="{Binding Instances}"
+                             SelectedItem="{Binding SelectedInstance}"
+                             Background="Transparent"
+                             BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="5">
+                                    <TextBlock Text="{Binding Name}" 
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Version}" 
+                                               Foreground="#AAAAAA"
+                                               FontSize="11"/>
+                                    <TextBlock Text="{Binding ModLoader}" 
+                                               Foreground="#888888"
+                                               FontSize="10"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Button Grid.Row="2" 
+                            Content="+ Nueva Instancia" 
+                            Command="{Binding CreateInstanceCommand}"
+                            Background="#0078D4"
+                            Foreground="White"
+                            Margin="10"
+                            HorizontalAlignment="Stretch"/>
+                </Grid>
+            </Border>
+
+            <!-- Instance Details -->
+            <Border Grid.Column="1" 
+                    Background="#1E1E1E" 
+                    BorderBrush="#3F3F3F" 
+                    BorderThickness="1"
+                    CornerRadius="4">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                        <TextBlock Text="{Binding SelectedInstance.Name}" 
+                                   FontSize="28" 
+                                   FontWeight="Bold" 
+                                   Foreground="White"/>
+                        <TextBlock Text="{Binding InstanceInfo}" 
+                                   Foreground="#AAAAAA"
+                                   Margin="0,5,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Spacing="15">
+                        <Button Content="Armario / Cosméticos" 
+                                Command="{Binding OpenCosmeticsCommand}"
+                                Background="#2D2D2D"
+                                Foreground="White"
+                                Padding="20,10"
+                                HorizontalAlignment="Left"/>
+                        <Button Content="Tienda de Mods (Modrinth)" 
+                                Command="{Binding OpenModStoreCommand}"
+                                Background="#2D2D2D"
+                                Foreground="White"
+                                Padding="20,10"
+                                HorizontalAlignment="Left"
+                                IsVisible="{Binding Config.EnableModrinthStore}"/>
+                        <Button Content="Carpeta de la Instancia" 
+                                Command="{Binding OpenInstanceFolderCommand}"
+                                Background="#2D2D2D"
+                                Foreground="White"
+                                Padding="20,10"
+                                HorizontalAlignment="Left"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" 
+                                Orientation="Horizontal" 
+                                HorizontalAlignment="Right"
+                                Spacing="10">
+                        <Button Content="EDITAR" 
+                                Command="{Binding EditInstanceCommand}"
+                                Background="#2D2D2D"
+                                Foreground="White"
+                                Padding="30,10"/>
+                        <Button Content="JUGAR" 
+                                Command="{Binding LaunchGameCommand}"
+                                Background="#107C10"
+                                Foreground="White"
+                                Padding="40,10"
+                                FontWeight="Bold"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Ads Banner -->
+        <controls:AdsBanner Grid.Row="2" Margin="20,10"/>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3F3F3F" BorderThickness="0,1,0,0">
+            <Grid Margin="20,0">
+                <TextBlock Text="{Binding StatusMessage}" 
+                           Foreground="#AAAAAA"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding DownloadProgress}" 
+                           Foreground="#AAAAAA"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

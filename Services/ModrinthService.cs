@@ -1,0 +1,167 @@
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Threading.Tasks;
+
+namespace TVLauncher.Services;
+
+public class ModrinthService
+{
+    private readonly HttpClient _httpClient;
+    private readonly ConfigService _configService;
+    private const string ApiBaseUrl = "https://api.modrinth.com/v2";
+    
+    public event EventHandler<string>? StatusChanged;
+
+    public ModrinthService(ConfigService configService)
+    {
+        _configService = configService;
+        _httpClient = new HttpClient();
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "TVLauncher/1.0.0");
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+    }
+
+    public async Task<List<ModrinthProject>> SearchModsAsync(string query, string gameVersion = "", string modLoader = "", int limit = 20)
+    {
+        if (!_configService.Config.EnableModrinthStore)
+        {
+            return new List<ModrinthProject>();
+        }
+
+        try
+        {
+            StatusChanged?.Invoke(this, "Buscando mods en Modrinth...");
+            
+            string facets = "[[\"project_type:mod\"]]";
+            if (!string.IsNullOrEmpty(gameVersion))
+            {
+                facets = $"[[\"project_type:mod\"],[\"versions:{gameVersion}\"]]";
+            }
+            if (!string.IsNullOrEmpty(modLoader))
+            {
+                facets = $"[[\"project_type:mod\"],[\"versions:{gameVersion}\"],[\"categories:{modLoader.ToLower()}\"]]";
+            }
+            
+            string url = $"{ApiBaseUrl}/search?query={Uri.EscapeDataString(query)}&facets={Uri.EscapeDataString(facets)}&limit={limit}";
+            string response = await _httpClient.GetStringAsync(url);
+            
+            var searchResult = JsonConvert.DeserializeObject<ModrinthSearchResult>(response);
+            StatusChanged?.Invoke(this, $"Se encontraron {searchResult?.Hits?.Count ?? 0} mods");
+            
+            return searchResult?.Hits ?? new List<ModrinthProject>();
+        }
+        catch (Exception ex)
+        {
+            StatusChanged?.Invoke(this, $"Error al buscar mods: {ex.Message}");
+            return new List<ModrinthProject>();
+        }
+    }
+
+    public async Task<ModrinthProject?> GetProjectAsync(string projectId)
+    {
+        try
+        {
+            string url = $"{ApiBaseUrl}/project/{projectId}";
+            string response = await _httpClient.GetStringAsync(url);
+            return JsonConvert.DeserializeObject<ModrinthProject>(response);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al obtener proyecto: {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task<List<ModrinthVersion>> GetProjectVersionsAsync(string projectId, string gameVersion = "", string modLoader = "")
+    {
+        try
+        {
+            string url = $"{ApiBaseUrl}/project/{projectId}/version";
+            if (!string.IsNullOrEmpty(gameVersion) || !string.IsNullOrEmpty(modLoader))
+            {
+                List<string> filters = new();
+                if (!string.IsNullOrEmpty(gameVersion)) filters.Add($"game_versions=[\"{gameVersion}\"]");
+                if (!string.IsNullOrEmpty(modLoader)) filters.Add($"loaders=[\"{modLoader.ToLower()}\"]");
+                url += "?" + string.Join("&", filters);
+            }
+            
+            string response = await _httpClient.GetStringAsync(url);
+            return JsonConvert.DeserializeObject<List<ModrinthVersion>>(response) ?? new List<ModrinthVersion>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al obtener versiones del proyecto: {ex.Message}");
+            return new List<ModrinthVersion>();
+        }
+    }
+}
+
+public class ModrinthSearchResult
+{
+    [JsonProperty("hits")]
+    public List<ModrinthProject> Hits { get; set; } = new();
+    
+    [JsonProperty("total_hits")]
+    public int TotalHits { get; set; }
+}
+
+public class ModrinthProject
+{
+    [JsonProperty("project_id")]
+    public string ProjectId { get; set; } = string.Empty;
+    
+    [JsonProperty("slug")]
+    public string Slug { get; set; } = string.Empty;
+    
+    [JsonProperty("title")]
+    public string Title { get; set; } = string.Empty;
+    
+    [JsonProperty("description")]
+    public string Description { get; set; } = string.Empty;
+    
+    [JsonProperty("icon_url")]
+    public string IconUrl { get; set; } = string.Empty;
+    
+    [JsonProperty("author")]
+    public string Author { get; set; } = string.Empty;
+    
+    [JsonProperty("downloads")]
+    public int Downloads { get; set; }
+    
+    [JsonProperty("categories")]
+    public List<string> Categories { get; set; } = new();
+}
+
+public class ModrinthVersion
+{
+    [JsonProperty("id")]
+    public string Id { get; set; } = string.Empty;
+    
+    [JsonProperty("name")]
+    public string Name { get; set; } = string.Empty;
+    
+    [JsonProperty("version_number")]
+    public string VersionNumber { get; set; } = string.Empty;
+    
+    [JsonProperty("game_versions")]
+    public List<string> GameVersions { get; set; } = new();
+    
+    [JsonProperty("loaders")]
+    public List<string> Loaders { get; set; } = new();
+    
+    [JsonProperty("files")]
+    public List<ModrinthFile> Files { get; set; } = new();
+}
+
+public class ModrinthFile
+{
+    [JsonProperty("url")]
+    public string Url { get; set; } = string.Empty;
+    
+    [JsonProperty("filename")]
+    public string Filename { get; set; } = string.Empty;
+    
+    [JsonProperty("primary")]
+    public bool Primary { get; set; }
+}
