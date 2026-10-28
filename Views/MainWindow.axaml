@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:controls="using:TVLauncher.Controls"
+        xmlns:views="using:TVLauncher.Views"
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
         x:Class="TVLauncher.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -57,7 +58,7 @@
         </Border>
 
         <!-- Main Content -->
-        <Grid Grid.Row="1" Margin="20">
+        <Grid Grid.Row="1" Margin="20" IsVisible="{Binding !IsCosmeticsOpen}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="250"/>
                 <ColumnDefinition Width="*"/>
@@ -182,8 +183,13 @@
             </Border>
         </Grid>
 
+        <!-- Armario de cosméticos (embebido, sin ventana emergente) -->
+        <Border Grid.Row="1" Margin="20" IsVisible="{Binding IsCosmeticsOpen}">
+            <views:CosmeticsView DataContext="{Binding Cosmetics}"/>
+        </Border>
+
         <!-- Ads Banner -->
-        <controls:AdsBanner Grid.Row="2" Margin="20,10"/>
+        <controls:AdsBanner Grid.Row="2" Margin="20,10" IsVisible="{Binding !IsCosmeticsOpen}"/>
 
         <!-- Status Bar -->
         <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3F3F3F" BorderThickness="0,1,0,0">

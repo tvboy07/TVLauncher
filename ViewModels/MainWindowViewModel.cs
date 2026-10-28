@@ -23,6 +23,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly CosmeticsService _cosmeticsService;
     private readonly ModrinthService _modrinthService;
 
+    /// <summary>ViewModel del armario de cosméticos embebido en la ventana principal.</summary>
+    public SkinsPreviewViewModel Cosmetics { get; }
+
+    [ObservableProperty]
+    private bool _isCosmeticsOpen;
+
     [ObservableProperty]
     private ObservableCollection<MinecraftInstance> _instances = new();
 
@@ -50,7 +56,8 @@ public partial class MainWindowViewModel : ViewModelBase
         AuthService authService,
         MinecraftService minecraftService,
         CosmeticsService cosmeticsService,
-        ModrinthService modrinthService)
+        ModrinthService modrinthService,
+        SkinsPreviewViewModel cosmetics)
     {
         _configService = configService;
         _instanceManager = instanceManager;
@@ -58,6 +65,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _minecraftService = minecraftService;
         _cosmeticsService = cosmeticsService;
         _modrinthService = modrinthService;
+        Cosmetics = cosmetics;
         _config = configService.Config;
 
         // Suscribirse a eventos
@@ -67,6 +75,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _authService.ActiveAccountChanged += OnActiveAccountChanged;
         _minecraftService.StatusChanged += OnStatusChanged;
         _minecraftService.DownloadProgressChanged += OnDownloadProgressChanged;
+        Cosmetics.CloseRequested += (_, _) => IsCosmeticsOpen = false;
 
         // Cargar datos
         LoadData();
@@ -179,6 +188,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
+            // Cerrar el armario para liberar el visor 3D antes de lanzar
+            IsCosmeticsOpen = false;
+
             // Inyección automática de cosméticos (Opción A + C)
             if (_configService.Config.AutoInjectCosmetics)
             {
@@ -203,24 +215,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void OpenCosmetics()
     {
-        var cosmeticsWindow = App.ServiceProvider?.GetRequiredService<SkinsPreviewWindow>();
-        if (cosmeticsWindow == null)
-        {
-            StatusMessage = "No se pudo abrir el armario de cosméticos";
-            Log.Error("[MainVM] No se pudo resolver SkinsPreviewWindow desde DI");
-            return;
-        }
+        // Se muestra dentro de la ventana principal (sin ventanas emergentes)
+        IsCosmeticsOpen = true;
+        Log.Info("[MainVM] Armario de cosméticos abierto en la vista principal");
+        _ = Cosmetics.EnsureSkinLoadedAsync();
+    }
 
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
-            && desktop.MainWindow != null)
-        {
-            Log.Info("[MainVM] Abriendo armario de cosméticos");
-            cosmeticsWindow.ShowDialog(desktop.MainWindow);
-        }
-        else
-        {
-            cosmeticsWindow.Show();
-        }
+    [RelayCommand]
+    private void CloseCosmetics()
+    {
+        IsCosmeticsOpen = false;
+        Log.Info("[MainVM] Armario de cosméticos cerrado");
     }
 
     [RelayCommand]

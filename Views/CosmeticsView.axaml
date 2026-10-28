@@ -1,0 +1,203 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TVLauncher.ViewModels"
+             xmlns:services="using:TVLauncher.Services"
+             xmlns:controls="using:TVLauncher.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="460"
+             x:Class="TVLauncher.Views.CosmeticsView"
+             x:DataType="vm:SkinsPreviewViewModel">
+
+    <UserControl.Resources>
+        <!-- Plantilla compartida por las pestañas Capas / Sombreros / Alas -->
+        <DataTemplate x:Key="CosmeticTemplate" x:DataType="services:CosmeticItem">
+            <Border Background="#252525" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Spacing="2">
+                        <TextBlock Text="{Binding Name}" Foreground="White" FontWeight="SemiBold" FontSize="12"/>
+                        <TextBlock Text="{Binding Type}" Foreground="#888888" FontSize="10"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="PREMIUM" Foreground="#E8B33A" FontSize="10" FontWeight="Bold"
+                                   VerticalAlignment="Center" IsVisible="{Binding !IsOwned}"/>
+                        <Button Content="Equipar"
+                                Command="{Binding $parent[UserControl].((vm:SkinsPreviewViewModel)DataContext).EquipCosmeticCommand}"
+                                CommandParameter="{Binding}"
+                                Background="#107C10" Foreground="White"
+                                FontSize="11" Padding="10,4"
+                                IsVisible="{Binding IsOwned}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border Background="#121212" BorderBrush="#3F3F3F" BorderThickness="1" CornerRadius="4">
+        <Grid Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="ARMARIO / COSMÉTICOS" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="{Binding SkinSource}" FontSize="11" Foreground="#888888"/>
+                </StackPanel>
+                <Button Content="✕  Cerrar"
+                        Command="{Binding CloseCommand}"
+                        HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Background="#2D2D2D" Foreground="White"
+                        FontSize="12" Padding="12,6"/>
+            </Grid>
+
+            <!-- Contenido -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="300"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Visor 3D -->
+                <Border Grid.Column="0"
+                        Background="#1E1E1E"
+                        BorderBrush="#3F3F3F"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Margin="0,0,10,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Background="#252525" BorderBrush="#3F3F3F" BorderThickness="0,0,0,1" Padding="12,8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox Text="{Binding Username}"
+                                         Watermark="Nickname"
+                                         Width="170"
+                                         FontSize="12"
+                                         Background="#2D2D2D"
+                                         Foreground="White"/>
+                                <Button Content="Cargar Skin"
+                                        Command="{Binding LoadSkinCommand}"
+                                        Background="#0078D4"
+                                        Foreground="White"
+                                        FontSize="12"
+                                        Padding="14,5"/>
+                                <ProgressBar IsVisible="{Binding IsLoading}"
+                                             IsIndeterminate="True"
+                                             Width="70"
+                                             Height="4"
+                                             VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" Background="#0F0F0F" ClipToBounds="True">
+                            <Grid>
+                                <controls:SkinPreviewGLControl x:Name="SkinPreviewControl"
+                                                               HorizontalAlignment="Stretch"
+                                                               VerticalAlignment="Stretch"
+                                                               MinHeight="160"/>
+                                <TextBlock Text="Carga una skin para previsualizarla en 3D"
+                                           IsVisible="{Binding !HasSkin}"
+                                           Foreground="#666666"
+                                           FontSize="12"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Panel de cosméticos -->
+                <Border Grid.Column="1"
+                        Background="#1E1E1E"
+                        BorderBrush="#3F3F3F"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TabControl Grid.Row="0" Background="Transparent" Padding="4">
+                            <TabItem>
+                                <TabItem.Header>
+                                    <TextBlock Text="Capas" FontSize="12" Margin="2,0"/>
+                                </TabItem.Header>
+                                <ScrollViewer>
+                                    <StackPanel Margin="4">
+                                        <TextBlock Text="Tu capa de Mojang se carga automáticamente al cargar la skin."
+                                                   Foreground="#888888" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <ItemsControl ItemsSource="{Binding Capes}"
+                                                      ItemTemplate="{StaticResource CosmeticTemplate}"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </TabItem>
+
+                            <TabItem>
+                                <TabItem.Header>
+                                    <TextBlock Text="Sombreros" FontSize="12" Margin="2,0"/>
+                                </TabItem.Header>
+                                <ScrollViewer>
+                                    <StackPanel Margin="4">
+                                        <ItemsControl ItemsSource="{Binding Hats}"
+                                                      ItemTemplate="{StaticResource CosmeticTemplate}"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </TabItem>
+
+                            <TabItem>
+                                <TabItem.Header>
+                                    <TextBlock Text="Alas" FontSize="12" Margin="2,0"/>
+                                </TabItem.Header>
+                                <ScrollViewer>
+                                    <StackPanel Margin="4">
+                                        <ItemsControl ItemsSource="{Binding Wings}"
+                                                      ItemTemplate="{StaticResource CosmeticTemplate}"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </TabItem>
+                        </TabControl>
+
+                        <!-- Controles del visor -->
+                        <Border Grid.Row="1" Background="#252525" BorderBrush="#3F3F3F" BorderThickness="0,1,0,0" Padding="12,8">
+                            <StackPanel Spacing="4">
+                                <CheckBox Content="Capa visible"
+                                          IsChecked="{Binding IsCapeVisible, Mode=TwoWay}"
+                                          IsEnabled="{Binding HasCape}"
+                                          Foreground="White" FontSize="11"/>
+                                <CheckBox Content="Animación al caminar"
+                                          IsChecked="{Binding WalkAnimation, Mode=TwoWay}"
+                                          Foreground="White" FontSize="11"/>
+                                <CheckBox Content="Giro automático"
+                                          IsChecked="{Binding AutoRotate, Mode=TwoWay}"
+                                          Foreground="White" FontSize="11"/>
+                                <CheckBox Content="Modelo slim (Alex)"
+                                          IsChecked="{Binding IsSlim, Mode=TwoWay}"
+                                          Foreground="White" FontSize="11"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Estado -->
+            <TextBlock Grid.Row="2"
+                       Text="{Binding StatusMessage}"
+                       Foreground="#AAAAAA"
+                       FontSize="11"
+                       Margin="0,10,0,0"
+                       TextTrimming="CharacterEllipsis"/>
+        </Grid>
+    </Border>
+</UserControl>

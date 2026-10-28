@@ -18,6 +18,7 @@ public class SkinService
     
     // Fallback endpoints
     private const string CrafatarSkinApi = "https://crafatar.com/skins";
+    private const string CrafatarCapeApi = "https://crafatar.com/capes";
     
     public event EventHandler<string>? StatusChanged;
 
@@ -143,11 +144,21 @@ public class SkinService
                             // Guardar en cache
                             string skinCacheFile = Path.Combine(_skinCachePath, $"{uuid}.png");
                             await File.WriteAllBytesAsync(skinCacheFile, skinBytes);
+
+                            // Capa (cape) del jugador: textures.CAPE.url
+                            string? capeUrl = textures.Textures.Cape?.Url;
+                            byte[]? capeBytes = null;
+                            if (!string.IsNullOrWhiteSpace(capeUrl))
+                            {
+                                capeBytes = await TryDownloadCapeAsync(uuid, capeUrl);
+                            }
                             
                             return new SkinData
                             {
                                 Uuid = uuid,
                                 SkinTexture = skinBytes,
+                                CapeTexture = capeBytes,
+                                CapeUrl = capeUrl,
                                 Model = model,
                                 Source = "MojangSessionServer"
                             };
@@ -189,11 +200,15 @@ public class SkinService
             
             // Guardar en cache
             await File.WriteAllBytesAsync(skinCacheFile, skinBytes);
+
+            // Crafatar también expone la capa del jugador (404 si no tiene)
+            byte[]? capeBytes = await TryDownloadCapeAsync(uuid, $"{CrafatarCapeApi}/{uuid}.png?size=64");
             
             return new SkinData
             {
                 Uuid = uuid,
                 SkinTexture = skinBytes,
+                CapeTexture = capeBytes,
                 Model = "classic",
                 Source = "Crafatar"
             };
@@ -229,12 +244,76 @@ public class SkinService
         
         return null;
     }
+
+    /// <summary>Descarga (o reutiliza la caché de) la textura de la capa del jugador.</summary>
+    private async Task<byte[]?> TryDownloadCapeAsync(string uuid, string capeUrl)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(capeUrl))
+                return GetCachedCape(uuid);
+
+            byte[] capeBytes = await _httpClient.GetByteArrayAsync(capeUrl);
+            if (capeBytes.Length == 0)
+                return GetCachedCape(uuid);
+
+            await File.WriteAllBytesAsync(Path.Combine(_skinCachePath, $"{uuid}_cape.png"), capeBytes);
+            Log.Info($"[Skin] Capa descargada ({capeBytes.Length} bytes)");
+            return capeBytes;
+        }
+        catch (Exception ex)
+        {
+            // Un 404 significa simplemente que el jugador no tiene capa
+            Log.Warn($"[Skin] No se pudo descargar la capa: {ex.Message}");
+            return GetCachedCape(uuid);
+        }
+    }
+
+    /// <summary>Capa cacheada en disco para el UUID indicado (o null si no existe).</summary>
+    public byte[]? GetCachedCape(string uuid)
+    {
+        try
+        {
+            string capeFile = Path.Combine(_skinCachePath, $"{uuid}_cape.png");
+            if (File.Exists(capeFile))
+            {
+                byte[] bytes = File.ReadAllBytes(capeFile);
+                return bytes.Length > 0 ? bytes : null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al obtener capa cacheada: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    /// <summary>Descarga una textura arbitraria (por ejemplo una capa de TVLauncher).</summary>
+    public async Task<byte[]?> DownloadTextureAsync(string url)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return null;
+
+            byte[] bytes = await _httpClient.GetByteArrayAsync(url);
+            return bytes.Length > 0 ? bytes : null;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[Skin] No se pudo descargar la textura '{url}': {ex.Message}");
+            return null;
+        }
+    }
 }
 
 public class SkinData
 {
     public string Uuid { get; set; } = string.Empty;
     public byte[]? SkinTexture { get; set; }
+    public byte[]? CapeTexture { get; set; }
+    public string? CapeUrl { get; set; }
     public string Model { get; set; } = "classic"; // classic o slim
     public string Source { get; set; } = string.Empty;
 }
