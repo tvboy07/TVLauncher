@@ -1,31 +1,63 @@
-# .gitignore for .NET / C# / Avalonia
+# ===== .gitignore de TVLauncher (.NET / C# / Avalonia) =====
+
+# --- Salidas de compilación ---
 bin/
 obj/
+[Bb]in/
+[Oo]bj/
+publish/
+artifacts/
+*.nupkg
+*.snupkg
+
+# Artefactos históricos que nunca deben versionarse
+obj.zip
+
+# --- Estado de usuario/IDE ---
 *.user
 *.suo
 *.cache
-*.log
+*.DotSettings.user
 .vs/
 .idea/
-*.DotSettings.user
-*.nupkg
-*.snupkg
+.vscode/
+
+# --- Pruebas y cobertura ---
 TestResults/
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
+*.trx
+*.coverage
+coverage*.xml
+
+# --- Logs y diagnósticos de ejecución ---
+*.log
+logs/
+crash-reports/
+hs_err_pid*.log
+replay_pid*.log
+
+# --- Datos de Minecraft descargados o a medio descargar ---
+*.part
+AppData/
+.localhistory/
+
+# --- Temporales de pruebas locales ---
+tmp/
+temp/
 *.tmp
 *.temp
 build_test.ps1
+*.ps1.user
 debug*.txt
 view.txt
 out.txt
-AppData/
-.localhistory/
- logs/
 tvlauncher_debug.txt
-*.ps1.user
 ui*.ps1
 uitest*.ps1
 shot*.ps1
+
+# --- Sistema operativo / editor ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
