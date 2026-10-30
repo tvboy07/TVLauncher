@@ -9,6 +9,12 @@ public partial class SettingsViewModel : ViewModelBase
 {
     private readonly ConfigService _configService;
 
+    /// <summary>
+    /// Se dispara cuando la página de ajustes debe cerrarse (guardar o cancelar).
+    /// El shell la usa para volver a la página anterior en lugar de cerrar una ventana.
+    /// </summary>
+    public event EventHandler? CloseRequested;
+
     [ObservableProperty]
     private int _maxRamGB;
 
@@ -28,13 +34,16 @@ public partial class SettingsViewModel : ViewModelBase
     private bool _keepLauncherOpen;
 
     [ObservableProperty]
-    private string _defaultSmpName;
+    private string _defaultSmpName = string.Empty;
 
     [ObservableProperty]
-    private string _defaultSmpIp;
+    private string _defaultSmpIp = string.Empty;
 
     [ObservableProperty]
     private int _defaultSmpPort;
+
+    [ObservableProperty]
+    private string _statusMessage = string.Empty;
 
     public SettingsViewModel(ConfigService configService)
     {
@@ -42,7 +51,7 @@ public partial class SettingsViewModel : ViewModelBase
         LoadSettings();
     }
 
-    private void LoadSettings()
+    public void LoadSettings()
     {
         MaxRamGB = _configService.Config.MaxRamGB;
         MinRamGB = _configService.Config.MinRamGB;
@@ -53,6 +62,7 @@ public partial class SettingsViewModel : ViewModelBase
         DefaultSmpName = _configService.Config.DefaultSmpServer.Name;
         DefaultSmpIp = _configService.Config.DefaultSmpServer.Ip;
         DefaultSmpPort = _configService.Config.DefaultSmpServer.Port;
+        StatusMessage = string.Empty;
     }
 
     [RelayCommand]
@@ -67,7 +77,18 @@ public partial class SettingsViewModel : ViewModelBase
         _configService.Config.DefaultSmpServer.Name = DefaultSmpName;
         _configService.Config.DefaultSmpServer.Ip = DefaultSmpIp;
         _configService.Config.DefaultSmpServer.Port = DefaultSmpPort;
-        
+
         _configService.SaveConfig();
+        StatusMessage = "Ajustes guardados";
+        Log.Info("[Settings] Configuración guardada desde el shell");
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        // Descartar cambios: recargar desde disco antes de salir de la página.
+        LoadSettings();
+        CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 }

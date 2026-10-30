@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,6 +10,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using TVLauncher.Models;
 using TVLauncher.Services;
@@ -28,8 +30,40 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>ViewModel del armario de cosméticos embebido en la ventana principal.</summary>
     public SkinsPreviewViewModel Cosmetics { get; }
 
+    /// <summary>ViewModel de la tienda de Modrinth embebida como página del shell.</summary>
+    public ModrinthBrowserViewModel Modrinth { get; }
+
+    /// <summary>ViewModel de la página de ajustes embebida en el shell.</summary>
+    public SettingsViewModel Settings { get; }
+
+    /// <summary>Cliente solo para el avatar; el resto de la red pasa por los servicios.</summary>
+    private static readonly HttpClient AvatarHttpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
+
     [ObservableProperty]
-    private bool _isCosmeticsOpen;
+    private AppPage _currentPage = AppPage.Instances;
+
+    /// <summary>Título que muestra el header del shell para la página activa.</summary>
+    public string PageTitle => CurrentPage switch
+    {
+        AppPage.Modrinth => "Tienda de Modrinth",
+        AppPage.Cosmetics => "Cosméticos",
+        AppPage.Settings => "Ajustes",
+        _ => "Instancias"
+    };
+
+    /// <summary>Subtítulo descriptivo de la página activa.</summary>
+    public string PageSubtitle => CurrentPage switch
+    {
+        AppPage.Modrinth => "Descubre, descarga y aplica mods a tu instancia",
+        AppPage.Cosmetics => "Personaliza tu personaje y previsualízalo en 3D",
+        AppPage.Settings => "Memoria, módulos y servidor por defecto",
+        _ => "Elige una instancia y lánzala cuando estés listo"
+    };
+
+    public bool IsInstancesPage => CurrentPage == AppPage.Instances;
+    public bool IsModrinthPage => CurrentPage == AppPage.Modrinth;
+    public bool IsCosmeticsPage => CurrentPage == AppPage.Cosmetics;
+    public bool IsSettingsPage => CurrentPage == AppPage.Settings;
 
     [ObservableProperty]
     private ObservableCollection<MinecraftInstance> _instances = new();
@@ -39,6 +73,21 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _activeAccountName = "Sin cuenta";
+
+    /// <summary>Cabeza de skin descargada de mc-heads.net; null si no hay red o cuenta.</summary>
+    [ObservableProperty]
+    private Bitmap? _avatar;
+
+    /// <summary>Iniciales del gamertag, usadas como respaldo del avatar.</summary>
+    [ObservableProperty]
+    private string _avatarInitials = "?";
+
+    [ObservableProperty]
+    private bool _hasAvatar;
+
+    /// <summary>Texto del estado de la cuenta en el header (Conectado / Offline / Sin cuenta).</summary>
+    [ObservableProperty]
+    private string _accountStatus = "Sin cuenta";
 
     [ObservableProperty]
     private string _statusMessage = "Listo";
@@ -91,7 +140,9 @@ public partial class MainWindowViewModel : ViewModelBase
         MinecraftService minecraftService,
         CosmeticsService cosmeticsService,
         ModrinthService modrinthService,
-        SkinsPreviewViewModel cosmetics)
+        SkinsPreviewViewModel cosmetics,
+        ModrinthBrowserViewModel modrinth,
+        SettingsViewModel settings)
     {
         _configService = configService;
         _instanceManager = instanceManager;
@@ -100,6 +151,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _cosmeticsService = cosmeticsService;
         _modrinthService = modrinthService;
         Cosmetics = cosmetics;
+        Modrinth = modrinth;
+        Settings = settings;
         _config = configService.Config;
 
         // Cargar configuración de RAM
@@ -115,7 +168,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _minecraftService.DownloadProgressChanged += OnDownloadProgressChanged;
         _minecraftService.GameLogReceived += OnGameLogReceived;
         _minecraftService.GameExited += OnGameExited;
-        Cosmetics.CloseRequested += (_, _) => IsCosmeticsOpen = false;
+        Cosmetics.CloseRequested += (_, _) => ShowInstances();
+        Settings.CloseRequested += (_, _) => ShowInstances();
 
         // Cargar datos
         LoadData();
@@ -142,16 +196,70 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         // Cuenta activa
+        RefreshProfile();
+        OnPropertyChanged(nameof(CanLaunch));
+    }
+
+    /// <summary>
+    /// Sincroniza el gamertag, el estado y el avatar del header con la cuenta activa.
+    /// El avatar se pide en segundo plano: si falla, quedan las iniciales.
+    /// </summary>
+    private void RefreshProfile()
+    {
         var activeAccount = _authService.ActiveAccount;
         if (activeAccount != null)
         {
             ActiveAccountName = activeAccount.Username;
+            AccountStatus = activeAccount.Type == AccountType.Microsoft
+                ? "Conectado"
+                : "Modo offline";
         }
         else
         {
             ActiveAccountName = "Sin cuenta";
+            AccountStatus = "Sin sesión";
         }
-        OnPropertyChanged(nameof(CanLaunch));
+
+        AvatarInitials = BuildInitials(ActiveAccountName);
+        Avatar = null;
+        HasAvatar = false;
+
+        if (activeAccount != null)
+            _ = LoadAvatarAsync(activeAccount.Username);
+    }
+
+    /// <summary>Iniciales para el respaldo del avatar (máximo dos letras).</summary>
+    internal static string BuildInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
+
+        var words = name.Split(new[] { ' ', '_', '-' }, StringSplitOptions.RemoveEmptyEntries);
+        return words.Length >= 2
+            ? $"{char.ToUpperInvariant(words[0][0])}{char.ToUpperInvariant(words[1][0])}"
+            : name.Trim()[..1].ToUpperInvariant();
+    }
+
+    /// <summary>Descarga la cabeza de la skin (64 px) y la expone como avatar circular.</summary>
+    private async Task LoadAvatarAsync(string username)
+    {
+        try
+        {
+            string url = $"https://mc-heads.net/avatar/{Uri.EscapeDataString(username)}/64";
+            byte[] bytes = await AvatarHttpClient.GetByteArrayAsync(url);
+
+            // La cuenta pudo cambiar mientras descargábamos.
+            if (!string.Equals(username, ActiveAccountName, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            using var stream = new MemoryStream(bytes);
+            Avatar = new Bitmap(stream);
+            HasAvatar = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[MainVM] Avatar no disponible para {username}: {ex.Message}");
+        }
     }
 
     private async Task LoadVersionsAsync()
@@ -180,6 +288,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 foreach (var id in list)
                     AvailableVersions.Add(id);
 
+                // Fuerza una notificación aunque el valor sea el mismo: al
+                // recrear ItemsSource el ComboBox puede descartar el SelectedItem
+                // y dejarse en blanco. Pasar por null garantiza que lo reenganche.
+                SelectedVersion = null;
                 if (SelectedInstance != null && !string.IsNullOrEmpty(SelectedInstance.Version))
                     SelectedVersion = SelectedInstance.Version;
                 else if (AvailableVersions.Count > 0)
@@ -257,8 +369,57 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void OnActiveAccountChanged(object? sender, MinecraftAccount account)
     {
-        ActiveAccountName = account.Username;
+        RefreshProfile();
         OnPropertyChanged(nameof(CanLaunch));
+    }
+
+    partial void OnCurrentPageChanged(AppPage value)
+    {
+        OnPropertyChanged(nameof(PageTitle));
+        OnPropertyChanged(nameof(PageSubtitle));
+        OnPropertyChanged(nameof(IsInstancesPage));
+        OnPropertyChanged(nameof(IsModrinthPage));
+        OnPropertyChanged(nameof(IsCosmeticsPage));
+        OnPropertyChanged(nameof(IsSettingsPage));
+    }
+
+    /// <summary>Navega a una página del shell y registra el cambio.</summary>
+    private void NavigateTo(AppPage page)
+    {
+        if (CurrentPage == page)
+            return;
+
+        CurrentPage = page;
+        Log.Info($"[MainVM] Página activa: {page}");
+    }
+
+    [RelayCommand]
+    private void ShowInstances() => NavigateTo(AppPage.Instances);
+
+    [RelayCommand]
+    private void ShowModrinth()
+    {
+        if (!_configService.Config.EnableModrinthStore)
+        {
+            StatusMessage = "La tienda de Modrinth está deshabilitada en configuración";
+            return;
+        }
+
+        NavigateTo(AppPage.Modrinth);
+    }
+
+    [RelayCommand]
+    private void ShowCosmetics()
+    {
+        NavigateTo(AppPage.Cosmetics);
+        _ = Cosmetics.EnsureSkinLoadedAsync();
+    }
+
+    [RelayCommand]
+    private void ShowSettings()
+    {
+        Settings.LoadSettings();
+        NavigateTo(AppPage.Settings);
     }
 
     private void OnStatusChanged(object? sender, string message)
@@ -333,18 +494,26 @@ public partial class MainWindowViewModel : ViewModelBase
 
         var editWindow = App.ServiceProvider?.GetRequiredService<InstanceEditWindow>();
         if (editWindow == null)
+        {
+            Log.Error("[MainVM] No se pudo resolver InstanceEditWindow");
             return;
+        }
 
         var editVm = editWindow.DataContext as InstanceEditViewModel;
         if (editVm != null)
         {
             editVm.Load(SelectedInstance);
+            Log.Info($"[MainVM] Editando instancia '{SelectedInstance.Name}'");
 
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
             {
                 editWindow.ShowDialog(desktop.MainWindow);
                 LoadData();
             }
+        }
+        else
+        {
+            Log.Error("[MainVM] InstanceEditWindow sin InstanceEditViewModel como DataContext");
         }
     }
 
@@ -379,8 +548,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 SelectedInstance.Version = SelectedVersion;
             _instanceManager.UpdateInstance(SelectedInstance);
 
-            // Cerrar el armario para liberar el visor 3D antes de lanzar
-            IsCosmeticsOpen = false;
+            // Volver a Instancias para liberar el visor 3D antes de lanzar
+            NavigateTo(AppPage.Instances);
 
             // Inyección automática de cosméticos (Opción A + C)
             if (_configService.Config.AutoInjectCosmetics)
@@ -420,37 +589,21 @@ public partial class MainWindowViewModel : ViewModelBase
     private void OpenCosmetics()
     {
         // Se muestra dentro de la ventana principal (sin ventanas emergentes)
-        IsCosmeticsOpen = true;
+        ShowCosmetics();
         Log.Info("[MainVM] Armario de cosméticos abierto en la vista principal");
-        _ = Cosmetics.EnsureSkinLoadedAsync();
     }
 
     [RelayCommand]
     private void CloseCosmetics()
     {
-        IsCosmeticsOpen = false;
+        NavigateTo(AppPage.Instances);
         Log.Info("[MainVM] Armario de cosméticos cerrado");
     }
 
     [RelayCommand]
-    private void OpenModStore()
-    {
-        if (!_configService.Config.EnableModrinthStore)
-        {
-            StatusMessage = "La tienda de Modrinth está deshabilitada en configuración";
-            return;
-        }
-        
-        var modrinthWindow = App.ServiceProvider?.GetRequiredService<ModrinthBrowserWindow>();
-        if (modrinthWindow != null)
-        {
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
-            {
-                modrinthWindow.ShowDialog(desktop.MainWindow);
-            }
-        }
-    }
+    private void OpenModStore() => ShowModrinth();
 
+    /// <summary>Abre la gestión de cuentas (única ventana modal que se conserva).</summary>
     [RelayCommand]
     private void OpenInstanceFolder()
     {
@@ -466,17 +619,7 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenSettings()
-    {
-        var settingsWindow = App.ServiceProvider?.GetRequiredService<SettingsWindow>();
-        if (settingsWindow != null)
-        {
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                settingsWindow.ShowDialog(desktop.MainWindow!);
-            }
-        }
-    }
+    private void OpenSettings() => ShowSettings();
 
     [RelayCommand]
     private void OpenAccounts()

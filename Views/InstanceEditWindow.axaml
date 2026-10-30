@@ -3,126 +3,100 @@
         xmlns:vm="using:TVLauncher.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="470"
+        mc:Ignorable="d" d:DesignWidth="470" d:DesignHeight="500"
         x:Class="TVLauncher.Views.InstanceEditWindow"
         x:DataType="vm:InstanceEditViewModel"
-        Title="TVLauncher - Editar Instancia"
-        Width="450" Height="470"
+        Title="TVLauncher — Editar instancia"
+        Width="470" Height="560"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
-        Background="#121212">
+        Background="{StaticResource AppBackgroundBrush}">
 
     <!-- El formulario supera la altura de la ventana en pantallas ajustadas o con
          escalado alto: se desplaza dentro del ScrollViewer y los botones quedan
          anclados abajo, siempre visibles. -->
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Grid Margin="24" RowDefinitions="*,Auto">
 
         <ScrollViewer Grid.Row="0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="0,0,10,0">
+            <StackPanel Margin="0,0,10,0" Spacing="14">
 
-                <TextBlock Text="EDITAR INSTANCIA" 
-                           FontSize="22" 
-                           FontWeight="Bold" 
-                           Foreground="White"
-                           Margin="0,0,0,15"/>
+                <StackPanel Spacing="3" Margin="0,0,0,4">
+                    <TextBlock Text="Editar instancia" Classes="h1" FontSize="22"/>
+                    <TextBlock Text="Ajusta la versión, el cargador y la memoria asignada"
+                               Classes="caption"/>
+                </StackPanel>
 
                 <!-- Nombre -->
-                <StackPanel Spacing="5" Margin="0,0,0,10">
-                    <TextBlock Text="Nombre de la instancia" Foreground="#AAAAAA" FontSize="11"/>
-                    <TextBox Text="{Binding InstanceName}"
-                             Background="#2D2D2D"
-                             Foreground="White"
-                             BorderBrush="#3F3F3F"/>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="NOMBRE DE LA INSTANCIA" Classes="label"/>
+                    <TextBox Text="{Binding InstanceName}"/>
                 </StackPanel>
 
                 <!-- Versión -->
-                <StackPanel Spacing="5" Margin="0,0,0,10">
-                    <TextBlock Text="Versión de Minecraft" Foreground="#AAAAAA" FontSize="11"/>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="VERSIÓN DE MINECRAFT" Classes="label"/>
                     <ComboBox ItemsSource="{Binding Versions}"
                               SelectedItem="{Binding SelectedVersion}"
-                              HorizontalAlignment="Stretch"
-                              Background="#2D2D2D"
-                              Foreground="White"/>
+                              HorizontalAlignment="Stretch"/>
                 </StackPanel>
 
                 <!-- ModLoader -->
-                <StackPanel Spacing="5" Margin="0,0,0,10">
-                    <TextBlock Text="ModLoader" Foreground="#AAAAAA" FontSize="11"/>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="CARGADOR DE MODS" Classes="label"/>
                     <ComboBox ItemsSource="{Binding ModLoaders}"
                               SelectedItem="{Binding SelectedModLoader}"
-                              HorizontalAlignment="Stretch"
-                              Background="#2D2D2D"
-                              Foreground="White"/>
+                              HorizontalAlignment="Stretch"/>
                 </StackPanel>
 
                 <!-- Versión del ModLoader -->
-                <StackPanel Spacing="5" Margin="0,0,0,10">
-                    <TextBlock Text="Versión del loader (Fabric/Forge/NeoForge)" Foreground="#AAAAAA" FontSize="11"/>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="VERSIÓN DEL CARGADOR (FABRIC/FORGE/NEOFORGE)" Classes="label"/>
                     <ComboBox ItemsSource="{Binding ModLoaderVersions}"
                               SelectedItem="{Binding SelectedModLoaderVersion}"
                               PlaceholderText="Última versión disponible"
-                              HorizontalAlignment="Stretch"
-                              Background="#2D2D2D"
-                              Foreground="White"/>
+                              HorizontalAlignment="Stretch"/>
                 </StackPanel>
 
                 <!-- RAM -->
-                <Border Background="#1E1E1E" 
-                        BorderBrush="#3F3F3F" 
-                        BorderThickness="1"
-                        CornerRadius="4"
-                        Padding="12"
-                        Margin="0,5,0,10">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="MEMORIA RAM" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11"/>
-                        <Grid>
-                            <TextBlock Text="Mínima" Foreground="#AAAAAA" FontSize="11" HorizontalAlignment="Left"/>
-                            <TextBlock Text="{Binding MinRamGB, StringFormat='{}{0} GB'}" Foreground="#AAAAAA" FontSize="11" HorizontalAlignment="Right"/>
+                <Border Classes="card" Padding="16" Margin="0,2,0,0">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="MEMORIA RAM" Classes="label"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Mínima" Classes="caption"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding MinRamGB, StringFormat='{}{0} GB'}"
+                                       Classes="caption"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
                         </Grid>
-                        <Slider Minimum="1" Maximum="16" Value="{Binding MinRamGB}" TickFrequency="1" IsSnapToTickEnabled="True"/>
-                        <Grid>
-                            <TextBlock Text="Máxima" Foreground="#AAAAAA" FontSize="11" HorizontalAlignment="Left"/>
-                            <TextBlock Text="{Binding MaxRamGB, StringFormat='{}{0} GB'}" Foreground="#AAAAAA" FontSize="11" HorizontalAlignment="Right"/>
+                        <Slider Minimum="1" Maximum="16" Value="{Binding MinRamGB}"
+                                TickFrequency="1" IsSnapToTickEnabled="True"/>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Máxima" Classes="caption"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding MaxRamGB, StringFormat='{}{0} GB'}"
+                                       Classes="caption"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
                         </Grid>
-                        <Slider Minimum="1" Maximum="16" Value="{Binding MaxRamGB}" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                        <Slider Minimum="1" Maximum="16" Value="{Binding MaxRamGB}"
+                                TickFrequency="1" IsSnapToTickEnabled="True"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Estado -->
-                <TextBlock Text="{Binding StatusMessage}" 
-                           Foreground="#AAAAAA"
-                           FontSize="11"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,5"/>
+                <TextBlock Text="{Binding StatusMessage}"
+                           Classes="caption"
+                           TextWrapping="Wrap"/>
             </StackPanel>
         </ScrollViewer>
 
         <!-- Botones (anclados, fuera del área desplazable) -->
-        <Grid Grid.Row="1" Margin="0,10,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Button Grid.Column="1" 
-                    Content="Cancelar" 
-                    Command="{Binding CancelCommand}"
-                    Background="#2D2D2D"
-                    Foreground="White"
-                    Padding="20,8"
-                    Margin="0,0,10,0"/>
-            <Button Grid.Column="2" 
-                    Content="Guardar" 
-                    Command="{Binding SaveCommand}"
-                    Background="#107C10"
-                    Foreground="White"
-                    Padding="25,8"/>
+        <Grid Grid.Row="1" Margin="0,16,0,0" ColumnDefinitions="*,Auto,Auto">
+            <Button Grid.Column="1" Content="Cancelar" Classes="ghost"
+                    Command="{Binding CancelCommand}" Margin="0,0,10,0"/>
+            <Button Grid.Column="2" Content="Guardar" Classes="primary"
+                    Command="{Binding SaveCommand}"/>
         </Grid>
     </Grid>
 </Window>

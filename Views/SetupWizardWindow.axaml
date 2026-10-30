@@ -3,143 +3,124 @@
         xmlns:vm="using:TVLauncher.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
+        mc:Ignorable="d" d:DesignWidth="620" d:DesignHeight="440"
         x:Class="TVLauncher.Views.SetupWizardWindow"
         x:DataType="vm:SetupWizardViewModel"
-        Title="TVLauncher - Configuración Inicial"
-        Width="600" Height="400"
+        Title="TVLauncher — Configuración inicial"
+        Width="620" Height="440"
         WindowStartupLocation="CenterScreen"
         CanResize="False"
-        Background="#121212">
+        Background="{StaticResource AppBackgroundBrush}">
 
-    <Grid Margin="30">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Grid Margin="32" RowDefinitions="Auto,*,Auto">
 
         <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,30">
-            <TextBlock Text="Bienvenido a TVLauncher" 
-                       FontSize="28" 
-                       FontWeight="Bold" 
-                       Foreground="White"
-                       HorizontalAlignment="Center"/>
-            <TextBlock Text="Configuración inicial" 
-                       FontSize="14" 
-                       Foreground="#AAAAAA"
+        <StackPanel Grid.Row="0" Margin="0,0,0,26" Spacing="6">
+            <Border Width="46" Height="46" CornerRadius="14"
+                    Background="{StaticResource AccentBrush}"
+                    HorizontalAlignment="Center">
+                <TextBlock Text="TV" FontWeight="Bold" FontSize="16" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <TextBlock Text="Bienvenido a TVLauncher"
+                       Classes="h1"
                        HorizontalAlignment="Center"
-                       Margin="0,5,0,0"/>
+                       Margin="0,10,0,0"/>
+            <TextBlock Text="Configuración inicial"
+                       Classes="caption"
+                       HorizontalAlignment="Center"/>
         </StackPanel>
 
         <!-- Content -->
         <Carousel Grid.Row="1" SelectedIndex="{Binding CurrentStep}">
             <!-- Step 0: Bienvenida -->
-            <StackPanel Spacing="15" VerticalAlignment="Center">
-                <TextBlock Text="¡Gracias por usar TVLauncher!" 
-                           FontSize="20" 
-                           Foreground="White"
+            <StackPanel Spacing="14" VerticalAlignment="Center">
+                <TextBlock Text="¡Gracias por usar TVLauncher!"
+                           FontSize="19"
+                           FontWeight="SemiBold"
                            HorizontalAlignment="Center"/>
-                <TextBlock Text="Un launcher de Minecraft ultraligero, de alto rendimiento y código abierto." 
-                           Foreground="#AAAAAA"
+                <TextBlock Text="Un launcher de Minecraft ultraligero, de alto rendimiento y código abierto."
+                           Classes="caption"
                            TextWrapping="Wrap"
                            HorizontalAlignment="Center"
                            TextAlignment="Center"/>
-                <TextBlock Text="Vamos a configurar algunos ajustes opcionales para optimizar tu experiencia." 
-                           Foreground="#AAAAAA"
+                <TextBlock Text="Vamos a configurar algunos ajustes opcionales para optimizar tu experiencia."
+                           Classes="caption"
                            TextWrapping="Wrap"
                            HorizontalAlignment="Center"
                            TextAlignment="Center"
-                           Margin="0,10,0,0"/>
+                           Margin="0,8,0,0"/>
             </StackPanel>
 
             <!-- Step 1: Módulos Opcionales -->
-            <StackPanel Spacing="15" VerticalAlignment="Center">
-                <TextBlock Text="Módulos Opcionales" 
-                           FontSize="20" 
-                           Foreground="White"
+            <StackPanel Spacing="14" VerticalAlignment="Center">
+                <TextBlock Text="Módulos opcionales"
+                           FontSize="19"
+                           FontWeight="SemiBold"
                            HorizontalAlignment="Center"
-                           Margin="0,0,0,10"/>
-                
-                <Border Background="#1E1E1E" 
-                        BorderBrush="#3F3F3F" 
-                        BorderThickness="1"
-                        CornerRadius="4"
-                        Padding="20">
-                    <StackPanel Spacing="15">
-                        <CheckBox IsChecked="{Binding EnableModrinthStore}" 
-                                  Content="Tienda de Mods de Modrinth"
-                                  Foreground="White"/>
-                        <TextBlock Text="Permite buscar y descargar mods desde Modrinth directamente desde el launcher." 
-                                   Foreground="#AAAAAA"
-                                   FontSize="11"
-                                   Margin="25,-10,0,0"
+                           Margin="0,0,0,4"/>
+
+                <Border Classes="card" Padding="20">
+                    <StackPanel Spacing="10">
+                        <CheckBox IsChecked="{Binding EnableModrinthStore}"
+                                  Content="Tienda de Mods de Modrinth"/>
+                        <TextBlock Text="Permite buscar y descargar mods desde Modrinth directamente desde el launcher."
+                                   Classes="caption"
+                                   Margin="25,-6,0,0"
                                    TextWrapping="Wrap"/>
-                        
-                        <CheckBox IsChecked="{Binding EnableCosmetics}" 
+
+                        <CheckBox IsChecked="{Binding EnableCosmetics}"
                                   Content="Sistema de Cosméticos TVLauncher"
-                                  Foreground="White"/>
-                        <TextBlock Text="Habilita el armario de cosméticos y la inyección del mod tvl-cosmetics.jar." 
-                                   Foreground="#AAAAAA"
-                                   FontSize="11"
-                                   Margin="25,-10,0,0"
+                                  Margin="0,8,0,0"/>
+                        <TextBlock Text="Habilita el armario de cosméticos y la inyección del mod tvl-cosmetics.jar."
+                                   Classes="caption"
+                                   Margin="25,-6,0,0"
                                    TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
 
             <!-- Step 2: Rendimiento -->
-            <StackPanel Spacing="15" VerticalAlignment="Center">
-                <TextBlock Text="Optimización de Rendimiento" 
-                           FontSize="20" 
-                           Foreground="White"
+            <StackPanel Spacing="14" VerticalAlignment="Center">
+                <TextBlock Text="Optimización de rendimiento"
+                           FontSize="19"
+                           FontWeight="SemiBold"
                            HorizontalAlignment="Center"
-                           Margin="0,0,0,10"/>
-                
-                <Border Background="#1E1E1E" 
-                        BorderBrush="#3F3F3F" 
-                        BorderThickness="1"
-                        CornerRadius="4"
-                        Padding="20">
-                    <StackPanel Spacing="15">
-                        <CheckBox IsChecked="{Binding AutoOptimizeMemory}" 
-                                  Content="Optimización automática de memoria al jugar"
-                                  Foreground="White"/>
-                        <TextBlock Text="Libera memoria caché al pulsar 'Jugar' para destinar más RAM a Minecraft." 
-                                   Foreground="#AAAAAA"
-                                   FontSize="11"
-                                   Margin="25,-10,0,0"
+                           Margin="0,0,0,4"/>
+
+                <Border Classes="card" Padding="20">
+                    <StackPanel Spacing="10">
+                        <CheckBox IsChecked="{Binding AutoOptimizeMemory}"
+                                  Content="Optimización automática de memoria al jugar"/>
+                        <TextBlock Text="Libera memoria caché al pulsar 'Jugar' para destinar más RAM a Minecraft."
+                                   Classes="caption"
+                                   Margin="25,-6,0,0"
                                    TextWrapping="Wrap"/>
-                        
-                        <TextBlock Text="TVLauncher está diseñado para usar menos de 50MB de RAM en segundo plano." 
-                                   Foreground="#107C10"
+
+                        <TextBlock Text="TVLauncher está diseñado para usar menos de 50 MB de RAM en segundo plano."
+                                   Foreground="{StaticResource SuccessBrush}"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    HorizontalAlignment="Center"
-                                   Margin="0,10,0,0"/>
+                                   Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
         </Carousel>
 
         <!-- Navigation -->
-        <StackPanel Grid.Row="2" 
-                    Orientation="Horizontal" 
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="10"
-                    Margin="0,30,0,0">
-            <Button Content="ATRÁS" 
+                    Margin="0,26,0,0">
+            <Button Content="Atrás"
+                    Classes="ghost"
                     Command="{Binding PreviousStepCommand}"
-                    IsVisible="{Binding CurrentStep}"
-                    Background="#2D2D2D"
-                    Foreground="White"
-                    Padding="30,10"/>
-            <Button Content="SIGUIENTE" 
-                    Command="{Binding NextStepCommand}"
-                    Background="#0078D4"
-                    Foreground="White"
-                    Padding="30,10"/>
+                    IsVisible="{Binding CurrentStep}"/>
+            <Button Content="Siguiente"
+                    Classes="primary"
+                    Command="{Binding NextStepCommand}"/>
         </StackPanel>
     </Grid>
 </Window>

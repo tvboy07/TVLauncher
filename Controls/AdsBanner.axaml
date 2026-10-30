@@ -4,25 +4,26 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="90"
              x:Class="TVLauncher.Controls.AdsBanner">
-    <Border Background="#1E1E1E" 
-            BorderBrush="#3F3F3F" 
-            BorderThickness="1" 
-            CornerRadius="4"
+    <Border Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="14"
             Height="90"
-            Margin="10">
+            Margin="0,4,0,0">
         <Grid>
-            <TextBlock Text="ESPACIO PUBLICITARIO - ADS BANNER" 
-                       HorizontalAlignment="Center" 
+            <TextBlock Text="ESPACIO PUBLICITARIO · ADS BANNER"
+                       HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       Foreground="#666666"
+                       Foreground="{StaticResource TextMutedBrush}"
                        FontSize="12"
                        FontWeight="SemiBold"/>
-            <TextBlock Text="(Reservado para publicidad ligera)" 
-                       HorizontalAlignment="Center" 
+            <TextBlock Text="(Reservado para publicidad ligera)"
+                       HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       Foreground="#444444"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       Opacity="0.7"
                        FontSize="10"
-                       Margin="0,20,0,0"/>
+                       Margin="0,22,0,0"/>
         </Grid>
     </Border>
 </UserControl>

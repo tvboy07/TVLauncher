@@ -94,7 +94,5 @@ public partial class App : Application
         // Views
         services.AddTransient<MainWindow>();
         services.AddTransient<SetupWizardWindow>();
-        services.AddTransient<SettingsWindow>();
-        services.AddTransient<ModrinthBrowserWindow>();
     }
 }

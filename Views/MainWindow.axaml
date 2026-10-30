@@ -1,211 +1,397 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:TVLauncher.ViewModels"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="using:TVLauncher.Models"
         xmlns:controls="using:TVLauncher.Controls"
         xmlns:views="using:TVLauncher.Views"
-        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="600"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="720"
         x:Class="TVLauncher.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="TVLauncher - Minecraft Launcher"
-        Width="1000" Height="600"
-        MinWidth="900" MinHeight="550"
+        Title="TVLauncher — Minecraft"
+        Width="1200" Height="720"
+        MinWidth="1024" MinHeight="640"
         WindowStartupLocation="CenterScreen"
-        Background="#121212">
+        Background="{StaticResource AppBackgroundBrush}">
 
-    <Design.DataContext>
-        <vm:MainWindowViewModel/>
-    </Design.DataContext>
+    <Grid ColumnDefinitions="248,*">
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="60"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="40"/>
-        </Grid.RowDefinitions>
+        <!-- ══════════════════ SIDEBAR ══════════════════ -->
+        <Border Grid.Column="0"
+                Background="{StaticResource SidebarBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,*,Auto" Margin="16,24,16,18">
 
-        <!-- Header -->
-        <Border Grid.Row="0" Background="#1E1E1E" BorderBrush="#3F3F3F" BorderThickness="0,0,0,1">
-            <Grid Margin="20,0">
-                <TextBlock Text="TVLauncher" 
-                           FontSize="24" 
-                           FontWeight="Bold" 
-                           Foreground="#FFFFFF"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Left"/>
-                
-                <StackPanel Orientation="Horizontal" 
-                            HorizontalAlignment="Right" 
-                            VerticalAlignment="Center"
-                            Spacing="10">
-                    <TextBlock Text="{Binding ActiveAccountName}" 
-                               Foreground="#AAAAAA"
-                               VerticalAlignment="Center"/>
-                    <Button Content="Cuenta" 
-                            Command="{Binding OpenAccountsCommand}"
-                            Background="#2D2D2D"
-                            Foreground="White"
-                            Padding="15,5"/>
-                    <Button Content="Configuración" 
-                            Command="{Binding OpenSettingsCommand}"
-                            Background="#2D2D2D"
-                            Foreground="White"
-                            Padding="15,5"/>
+                <!-- Marca -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="6,0,0,28">
+                    <Border Width="40" Height="40"
+                            CornerRadius="12"
+                            Background="{StaticResource AccentBrush}">
+                        <TextBlock Text="TV"
+                                   FontWeight="Bold"
+                                   FontSize="15"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="TVLauncher" FontWeight="Bold" FontSize="15"/>
+                        <TextBlock Text="Minecraft" Classes="caption" FontSize="10"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Navegación -->
+                <StackPanel Grid.Row="1" Spacing="6">
+                    <TextBlock Text="MENÚ" Classes="label" Margin="14,0,0,6"/>
+
+                    <Button Classes="nav"
+                            AutomationProperties.Name="Instancias"
+                            Classes.active="{Binding IsInstancesPage}"
+                            Command="{Binding ShowInstancesCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="▦" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="Instancias" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            AutomationProperties.Name="Tienda Modrinth"
+                            Classes.active="{Binding IsModrinthPage}"
+                            Command="{Binding ShowModrinthCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="◈" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="Tienda Modrinth" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            AutomationProperties.Name="Cosméticos"
+                            Classes.active="{Binding IsCosmeticsPage}"
+                            Command="{Binding ShowCosmeticsCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="✦" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="Cosméticos" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Classes="nav"
+                            AutomationProperties.Name="Ajustes"
+                            Classes.active="{Binding IsSettingsPage}"
+                            Command="{Binding ShowSettingsCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="⚙" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="Ajustes" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Pie -->
+                <StackPanel Grid.Row="2" Spacing="10">
+                    <Border Height="1" Background="{StaticResource BorderBrush}" Margin="6,0,6,6"/>
+                    <Button Classes="ghost"
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding OpenAccountsCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="⚿" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Text="Gestionar cuentas" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="TVLauncher · v1.0"
+                               Classes="caption"
+                               FontSize="10"
+                               HorizontalAlignment="Center"
+                               Margin="0,4,0,0"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Main Content -->
-        <Grid Grid.Row="1" Margin="20" IsVisible="{Binding !IsCosmeticsOpen}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <!-- ══════════════════ ZONA DERECHA ══════════════════ -->
+        <Grid Grid.Column="1" RowDefinitions="80,*,Auto">
 
-            <!-- Instances Panel -->
-            <Border Grid.Column="0" 
-                    Background="#1E1E1E" 
-                    BorderBrush="#3F3F3F" 
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Margin="0,0,10,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="40"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="50"/>
-                    </Grid.RowDefinitions>
+            <!-- Header -->
+            <Border Grid.Row="0"
+                    Background="{StaticResource SidebarBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="24,0">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="{Binding PageTitle}" FontSize="21" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding PageSubtitle}" Classes="caption"/>
+                    </StackPanel>
 
-                    <Border Grid.Row="0" Background="#252525" BorderBrush="#3F3F3F" BorderThickness="0,0,0,1">
-                        <TextBlock Text="INSTANCIAS" 
-                                   Foreground="#FFFFFF"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"
-                                   Margin="15,0"/>
-                    </Border>
+                    <!-- Tarjeta de perfil -->
+                    <Button Grid.Column="1"
+                            Classes="profile"
+                            VerticalAlignment="Center"
+                            Command="{Binding OpenAccountsCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Width="38" Height="38"
+                                    CornerRadius="19"
+                                    ClipToBounds="True"
+                                    Background="{StaticResource AccentSoftBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1">
+                                <Grid>
+                                    <TextBlock Text="{Binding AvatarInitials}"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                    <Image Source="{Binding Avatar}"
+                                           IsVisible="{Binding HasAvatar}"
+                                           Stretch="UniformToFill"/>
+                                </Grid>
+                            </Border>
 
-                    <ListBox Grid.Row="1" 
-                             ItemsSource="{Binding Instances}"
-                             SelectedItem="{Binding SelectedInstance}"
-                             Background="Transparent"
-                             BorderThickness="0">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Margin="5">
-                                    <TextBlock Text="{Binding Name}" 
-                                               Foreground="White"
-                                               FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding Version}" 
-                                               Foreground="#AAAAAA"
-                                               FontSize="11"/>
-                                    <TextBlock Text="{Binding ModLoader}" 
-                                               Foreground="#888888"
-                                               FontSize="10"/>
+                            <StackPanel VerticalAlignment="Center" Spacing="3" Width="132">
+                                <TextBlock Text="{Binding ActiveAccountName}"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="7" Height="7"
+                                             Fill="{StaticResource SuccessBrush}"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding AccountStatus}"
+                                               Classes="caption"
+                                               FontSize="11"
+                                               VerticalAlignment="Center"/>
                                 </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                            </StackPanel>
 
-                    <Button Grid.Row="2" 
-                            Content="+ Nueva Instancia" 
-                            Command="{Binding CreateInstanceCommand}"
-                            Background="#0078D4"
-                            Foreground="White"
-                            Margin="10"
-                            HorizontalAlignment="Stretch"/>
+                            <TextBlock Text="⌄"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                 </Grid>
             </Border>
 
-            <!-- Instance Details -->
-            <Border Grid.Column="1" 
-                    Background="#1E1E1E" 
-                    BorderBrush="#3F3F3F" 
-                    BorderThickness="1"
-                    CornerRadius="4">
-                <Grid Margin="20">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+            <!-- Contenido / páginas -->
+            <Grid Grid.Row="1" Margin="24,20,24,20">
 
-                    <StackPanel Grid.Row="0" Margin="0,0,0,20">
-                        <TextBlock Text="{Binding SelectedInstance.Name}" 
-                                   FontSize="28" 
-                                   FontWeight="Bold" 
-                                   Foreground="White"/>
-                        <TextBlock Text="{Binding InstanceInfo}" 
-                                   Foreground="#AAAAAA"
-                                   Margin="0,5,0,0"/>
-                    </StackPanel>
+                <!-- ─────────── INSTANCIAS ─────────── -->
+                <Grid IsVisible="{Binding IsInstancesPage}" RowDefinitions="*,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,320">
+                        <ListBox Grid.Column="0"
+                                 Classes="cards"
+                                 Margin="0,0,10,0"
+                                 ItemsSource="{Binding Instances}"
+                                 SelectedItem="{Binding SelectedInstance}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:MinecraftInstance">
+                                    <Grid Width="226" RowDefinitions="Auto,Auto" Margin="4">
+                                        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
+                                            <Border Grid.Column="0"
+                                                    Width="42" Height="42"
+                                                    CornerRadius="11"
+                                                    Background="{StaticResource AccentSoftBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1">
+                                                <TextBlock Text="▦"
+                                                           FontSize="17"
+                                                           Foreground="{StaticResource AccentHoverBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="11,0,8,0" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="14"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Version}"
+                                                           Classes="caption"
+                                                           FontSize="10"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <Border Grid.Column="2"
+                                                    Classes="pill"
+                                                    VerticalAlignment="Top">
+                                                <TextBlock Text="{Binding MaxRamGB, StringFormat='{}{0} GB'}"
+                                                           FontSize="10"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </Border>
+                                        </Grid>
 
-                    <StackPanel Grid.Row="1" Spacing="15">
-                        <Button Content="Armario / Cosméticos" 
-                                Command="{Binding OpenCosmeticsCommand}"
-                                Background="#2D2D2D"
-                                Foreground="White"
-                                Padding="20,10"
-                                HorizontalAlignment="Left"/>
-                        <Button Content="Tienda de Mods (Modrinth)" 
-                                Command="{Binding OpenModStoreCommand}"
-                                Background="#2D2D2D"
-                                Foreground="White"
-                                Padding="20,10"
-                                HorizontalAlignment="Left"
-                                IsVisible="{Binding Config.EnableModrinthStore}"/>
-                        <Button Content="Carpeta de la Instancia" 
-                                Command="{Binding OpenInstanceFolderCommand}"
-                                Background="#2D2D2D"
-                                Foreground="White"
-                                Padding="20,10"
-                                HorizontalAlignment="Left"/>
-                    </StackPanel>
+                                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding LastPlayed, StringFormat='Última sesión: {0:dd/MM/yyyy}'}"
+                                                       Classes="caption"
+                                                       FontSize="10"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding ModLoader}"
+                                                       Classes="caption"
+                                                       FontSize="10"/>
+                                        </Grid>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
 
-                    <Grid Grid.Row="2" Margin="0,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0"
-                                Content="EDITAR" 
-                                Command="{Binding EditInstanceCommand}"
-                                Background="#2D2D2D"
-                                Foreground="White"
-                                Padding="30,10"
-                                HorizontalAlignment="Left"/>
-                        <Button Grid.Column="1"
-                                Content="JUGAR" 
-                                Command="{Binding LaunchGameCommand}"
-                                Background="#107C10"
-                                Foreground="White"
-                                Padding="40,10"
-                                FontWeight="Bold"/>
+                        <!-- Panel de detalle -->
+                        <Border Grid.Column="1" Classes="card" Padding="20" VerticalAlignment="Top">
+                            <Grid>
+                                <ScrollViewer>
+                                    <StackPanel Spacing="14"
+                                                IsVisible="{Binding SelectedInstance, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="{Binding SelectedInstance.Name}"
+                                                       FontSize="18"
+                                                       FontWeight="Bold"
+                                                       TextWrapping="Wrap"/>
+                                            <Border Classes="pill" HorizontalAlignment="Left" MaxWidth="240">
+                                                <TextBlock Text="{Binding SelectedInstance.ModLoader}"
+                                                           FontSize="10"
+                                                           Foreground="{StaticResource AccentHoverBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <Border Height="1" Background="{StaticResource BorderBrush}"/>
+
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="Versión" Classes="caption"/>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding SelectedInstance.Version}"
+                                                           FontSize="12"
+                                                           MaxWidth="180"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="Cargador de mods" Classes="caption"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding SelectedInstance.ModLoader}" FontSize="12"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="Memoria" Classes="caption"/>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding SelectedInstance.MaxRamGB, StringFormat='{}{0} GB'}"
+                                                           FontSize="12"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="Creada" Classes="caption"/>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding SelectedInstance.CreatedAt, StringFormat='{}{0:dd/MM/yyyy}'}"
+                                                           FontSize="12"/>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <Border Height="1" Background="{StaticResource BorderBrush}"/>
+
+                                        <StackPanel Spacing="8">
+                                            <Button Content="Editar instancia"
+                                                    Classes="ghost"
+                                                    HorizontalAlignment="Stretch"
+                                                    Command="{Binding EditInstanceCommand}"/>
+                                            <Button Content="Abrir carpeta del juego"
+                                                    Classes="ghost"
+                                                    HorizontalAlignment="Stretch"
+                                                    Command="{Binding OpenInstanceFolderCommand}"/>
+                                            <Button Content="Nueva instancia"
+                                                    Classes="primary"
+                                                    HorizontalAlignment="Stretch"
+                                                    Command="{Binding CreateInstanceCommand}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <StackPanel Spacing="8"
+                                            VerticalAlignment="Center"
+                                            HorizontalAlignment="Center"
+                                            IsVisible="{Binding SelectedInstance, Converter={x:Static ObjectConverters.IsNull}}">
+                                    <TextBlock Text="▦"
+                                               FontSize="30"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Ninguna instancia seleccionada"
+                                               Classes="caption"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                     </Grid>
+
+                    <controls:AdsBanner Grid.Row="1" Margin="0,16,0,0"/>
+                </Grid>
+
+                <!-- ─────────── MODRINTH ─────────── -->
+                <Grid IsVisible="{Binding IsModrinthPage}">
+                    <views:ModrinthView DataContext="{Binding Modrinth}"/>
+                </Grid>
+
+                <!-- ─────────── COSMÉTICOS ─────────── -->
+                <Grid IsVisible="{Binding IsCosmeticsPage}">
+                    <views:CosmeticsView DataContext="{Binding Cosmetics}"/>
+                </Grid>
+
+                <!-- ─────────── AJUSTES ─────────── -->
+                <Grid IsVisible="{Binding IsSettingsPage}">
+                    <views:SettingsView DataContext="{Binding Settings}"/>
+                </Grid>
+            </Grid>
+
+            <!-- Barra de lanzamiento -->
+            <Border Grid.Row="2"
+                    Background="{StaticResource SidebarBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="24,14">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="4" Width="300">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Ellipse Width="8" Height="8"
+                                     Fill="{StaticResource SuccessBrush}"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding StatusMessage}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding DownloadProgress}"
+                                   Classes="caption"
+                                   FontSize="10"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                Spacing="10"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="VERSIÓN" Classes="label" VerticalAlignment="Center"/>
+                        <ComboBox Width="180"
+                                  ItemsSource="{Binding AvailableVersions}"
+                                  SelectedItem="{Binding SelectedVersion}"
+                                  MinHeight="34"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="2"
+                            Classes="primary"
+                            AutomationProperties.Name="Jugar"
+                            Width="220" Height="50"
+                            FontSize="15"
+                            FontWeight="Bold"
+                            Command="{Binding LaunchGameCommand}"
+                            IsEnabled="{Binding CanLaunch}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="▶" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="JUGAR" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                 </Grid>
             </Border>
         </Grid>
-
-        <!-- Armario de cosméticos (embebido, sin ventana emergente) -->
-        <Border Grid.Row="1" Margin="20" IsVisible="{Binding IsCosmeticsOpen}">
-            <views:CosmeticsView DataContext="{Binding Cosmetics}"/>
-        </Border>
-
-        <!-- Ads Banner -->
-        <controls:AdsBanner Grid.Row="2" Margin="20,10" IsVisible="{Binding !IsCosmeticsOpen}"/>
-
-        <!-- Status Bar -->
-        <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3F3F3F" BorderThickness="0,1,0,0">
-            <Grid Margin="20,0">
-                <TextBlock Text="{Binding StatusMessage}" 
-                           Foreground="#AAAAAA"
-                           VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding DownloadProgress}" 
-                           Foreground="#AAAAAA"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center"/>
-            </Grid>
-        </Border>
     </Grid>
 </Window>

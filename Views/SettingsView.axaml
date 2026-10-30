@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TVLauncher.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="520"
+             x:Class="TVLauncher.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="16" Margin="0,0,12,12">
+
+            <!-- Memoria -->
+            <Border Classes="card" Padding="20">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Memoria RAM" Classes="h2"/>
+                        <TextBlock Text="Rango asignado por defecto a las instancias nuevas"
+                                   Classes="caption"/>
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,*,*">
+                        <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,10,0">
+                            <TextBlock Text="MÍNIMO (GB)" Classes="label"/>
+                            <NumericUpDown Value="{Binding MinRamGB}" Minimum="1" Maximum="32"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="6" Margin="10,0">
+                            <TextBlock Text="MÁXIMO (GB)" Classes="label"/>
+                            <NumericUpDown Value="{Binding MaxRamGB}" Minimum="1" Maximum="32"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="6" Margin="10,0,0,0">
+                            <TextBlock Text="OPTIMIZACIÓN" Classes="label"/>
+                            <CheckBox IsChecked="{Binding AutoOptimizeMemory}"
+                                      Content="Automática"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Módulos -->
+            <Border Classes="card" Padding="20">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Módulos" Classes="h2"/>
+                        <TextBlock Text="Activa o desactiva las secciones del launcher"
+                                   Classes="caption"/>
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+                        <CheckBox Grid.Column="0" IsChecked="{Binding EnableModrinthStore}"
+                                  Content="Tienda de Modrinth"/>
+                        <CheckBox Grid.Column="1" IsChecked="{Binding EnableCosmetics}"
+                                  Content="Sistema de cosméticos"/>
+                        <CheckBox Grid.Column="0" Grid.Row="1" IsChecked="{Binding KeepLauncherOpen}"
+                                  Content="Mantener el launcher abierto al jugar" Margin="0,10,0,0"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Servidor SMP por defecto -->
+            <Border Classes="card" Padding="20">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Servidor SMP por defecto" Classes="h2"/>
+                        <TextBlock Text="Se propone al crear una instancia multijugador"
+                                   Classes="caption"/>
+                    </StackPanel>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="NOMBRE" Classes="label"/>
+                        <TextBox Text="{Binding DefaultSmpName}" Watermark="Nombre del servidor"/>
+                        <Grid ColumnDefinitions="*,140" Margin="0,4,0,0">
+                            <StackPanel Grid.Column="0" Spacing="8" Margin="0,0,10,0">
+                                <TextBlock Text="IP" Classes="label"/>
+                                <TextBox Text="{Binding DefaultSmpIp}" Watermark="IP del servidor"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="8">
+                                <TextBlock Text="PUERTO" Classes="label"/>
+                                <NumericUpDown Value="{Binding DefaultSmpPort}"
+                                               Minimum="1" Maximum="65535"
+                                               MinWidth="130"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Acciones -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="Cancelar" Classes="ghost" Command="{Binding CancelCommand}"/>
+                <Button Content="Guardar cambios" Classes="primary" Command="{Binding SaveSettingsCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

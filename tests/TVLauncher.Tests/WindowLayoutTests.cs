@@ -18,7 +18,7 @@ public sealed class WindowLayoutTests
 
     [Theory]
     [InlineData("Views/InstanceEditWindow.axaml", "Guardar")]
-    [InlineData("Views/CreateInstanceWindow.axaml", "Crear")]
+    [InlineData("Views/CreateInstanceWindow.axaml", "Crear instancia")]
     public void InstanceWindows_ScrollTheFormAndPinTheActionButton(string relativePath, string actionLabel)
     {
         XDocument document = XDocument.Load(Path.Combine(RepositoryRoot(), relativePath));

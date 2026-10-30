@@ -1,0 +1,135 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TVLauncher.ViewModels"
+             xmlns:services="using:TVLauncher.Services"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="520"
+             x:Class="TVLauncher.Views.ModrinthView"
+             x:DataType="vm:ModrinthBrowserViewModel">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="0,0,12,12">
+
+        <!-- Búsqueda y filtros -->
+        <Border Grid.Row="0" Classes="card" Padding="14" Margin="0,0,0,14">
+            <Grid ColumnDefinitions="*,150,150,Auto">
+                <TextBox Grid.Column="0"
+                         Text="{Binding SearchQuery}"
+                         Watermark="Buscar mods, shaders, packs..."
+                         Margin="0,0,10,0"/>
+                <ComboBox Grid.Column="1"
+                          SelectedItem="{Binding SelectedGameVersion}"
+                          ItemsSource="{Binding GameVersions}"
+                          Margin="0,0,10,0"/>
+                <ComboBox Grid.Column="2"
+                          SelectedItem="{Binding SelectedModLoader}"
+                          ItemsSource="{Binding ModLoaders}"
+                          Margin="0,0,10,0"/>
+                <Button Grid.Column="3"
+                        Content="Buscar"
+                        Classes="primary"
+                        Command="{Binding SearchCommand}"/>
+            </Grid>
+        </Border>
+
+        <!-- Resultados + detalle -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,320">
+            <Border Grid.Column="0" Classes="card" Margin="0,0,14,0" Padding="8">
+                <ListBox ItemsSource="{Binding SearchResults}"
+                         SelectedItem="{Binding SelectedProject}"
+                         Background="Transparent"
+                         BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="services:ModrinthProject">
+                            <Grid ColumnDefinitions="52,*" Margin="4">
+                                <Border Grid.Column="0"
+                                        Width="48" Height="48"
+                                        Background="{StaticResource SurfaceAltBrush}"
+                                        CornerRadius="10">
+                                    <TextBlock Text="&#x1F4E6;"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="22"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="2">
+                                    <TextBlock Text="{Binding Title}"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"/>
+                                    <TextBlock Text="{Binding Author}"
+                                               Classes="caption"
+                                               FontSize="11"/>
+                                    <TextBlock Text="{Binding Description}"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               MaxLines="2"/>
+                                    <TextBlock Text="{Binding Downloads, StringFormat='{}{0:N0} descargas'}"
+                                               Classes="caption"
+                                               FontSize="10"/>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+            <Border Grid.Column="1" Classes="card" Padding="0" ClipToBounds="True">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <Border Grid.Row="0"
+                            Background="{StaticResource SurfaceAltBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="16,12">
+                        <TextBlock Text="VERSIONES COMPATIBLES" Classes="label"/>
+                    </Border>
+
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding ProjectVersions}"
+                             SelectedItem="{Binding SelectedVersion}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Margin="4">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="services:ModrinthVersion">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding VersionNumber}" Classes="caption" FontSize="11"/>
+                                    <TextBlock Text="{Binding GameVersions[0]}" Classes="caption" FontSize="10"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Button Grid.Row="2"
+                            Content="Descargar a la instancia"
+                            Classes="primary"
+                            Command="{Binding DownloadModCommand}"
+                            Margin="12"
+                            HorizontalAlignment="Stretch"
+                            IsEnabled="{Binding SelectedVersion, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Estado + progreso -->
+        <StackPanel Grid.Row="2" Margin="2,12,2,0" Spacing="8">
+            <ProgressBar Minimum="0"
+                         Maximum="100"
+                         Value="{Binding DownloadProgress}"
+                         IsVisible="{Binding IsDownloading}"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusMessage}"
+                           Classes="caption"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Content="Cancelar descarga"
+                        Classes="ghost"
+                        Command="{Binding CancelDownloadCommand}"
+                        IsVisible="{Binding IsDownloading}"
+                        Margin="10,0,0,0"/>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</UserControl>

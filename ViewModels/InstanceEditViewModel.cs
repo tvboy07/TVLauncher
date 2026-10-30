@@ -79,6 +79,12 @@ public partial class InstanceEditViewModel : ViewModelBase
         // del loader, así que el valor guardado se asigna antes de la carga definitiva.
         SelectedModLoader = _installedModLoader;
         SelectedModLoaderVersion = instance.ModLoaderVersion;
+
+        // El manifiesto de versiones llega por red de forma asíncrona. Sembrar la
+        // versión base evita que el ComboBox aparezca vacío hasta que termine.
+        if (!string.IsNullOrWhiteSpace(_baseVersion) && !Versions.Contains(_baseVersion))
+            Versions.Insert(0, _baseVersion);
+        SelectedVersion = null;
         SelectedVersion = _baseVersion;
 
         MaxRamGB = instance.MaxRamGB;
@@ -178,6 +184,7 @@ public partial class InstanceEditViewModel : ViewModelBase
         try
         {
             var manifest = await gameFilesService.GetManifestAsync();
+            string targetVersion = !string.IsNullOrWhiteSpace(_baseVersion) ? _baseVersion : SelectedVersion;
 
             // Manifiesto completo, sin filtrar por tipo ni recortar: las versiones
             // legacy (1.12.2, 1.8.9, alpha/beta) también deben poder seleccionarse.
@@ -186,8 +193,11 @@ public partial class InstanceEditViewModel : ViewModelBase
                 Versions.Add(v.Id);
 
             // La instancia puede apuntar a un id de modloader que no está en el manifiesto.
-            if (!string.IsNullOrWhiteSpace(SelectedVersion) && !Versions.Contains(SelectedVersion))
-                Versions.Insert(0, SelectedVersion);
+            if (!string.IsNullOrWhiteSpace(targetVersion) && !Versions.Contains(targetVersion))
+                Versions.Insert(0, targetVersion);
+
+            if (!string.IsNullOrWhiteSpace(targetVersion))
+                SelectedVersion = targetVersion;
         }
         catch (Exception ex)
         {

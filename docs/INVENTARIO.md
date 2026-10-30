@@ -16,12 +16,12 @@
 | Métrica | Valor |
 |---|---|
 | Stack | C# / .NET 8.0 · Avalonia UI 11.1.3 · MVVM (CommunityToolkit) · DI (Microsoft.Extensions) |
-| Código fuente propio | **54 archivos / 9.043 líneas** (sin `bin`, `obj` ni tests) |
-| Tests | **17 archivos / 1.766 líneas / 114 casos** (xUnit) |
+| Código fuente propio | **55 archivos / 9.443 líneas** (sin `bin`, `obj` ni tests) |
+| Tests | **20 archivos / 2.099 líneas / 169 casos** (xUnit) |
 | Dependencias NuGet | 20 (Avalonia, Silk.NET.OpenGL, SkiaSharp, Newtonsoft.Json, CmlLib.Core residual) |
-| Commits | 11 previos + este documento |
+| Commits | 15 previos + este documento |
 | Build | **0 errores**, advertencias preexistentes (`MVVMTK0034`, `AVLN3001`, nullable) |
-| Superficie de UI | 8 ventanas/vistas, 9 ViewModels, 9 servicios singleton |
+| Superficie de UI | 5 ventanas + 3 vistas embebidas, 10 ViewModels, 9 servicios singleton |
 | Verificación de arranque | 8 combinaciones de versión/modloader llevadas al menú principal |
 | Cifrado en disco | **AES-256-GCM** para `accounts.json` con clave local y migración automática |
 
@@ -30,17 +30,22 @@
 | Carpeta | Archivos | Líneas | Contenido |
 |---|---|---|---|
 | `Services/` | 13 | 4.315 | Núcleo de lanzamiento, auth, cuentas cifradas, instancias, cosméticos, Modrinth, skins |
-| `ViewModels/` | 9 | 1.600 | Lógica de presentación MVVM |
-| `Views/` | 16 (`8 .axaml` + `8 .cs`) | 1.540 | Ventanas y vistas Avalonia |
-| `Controls/` | 3 | 640 | Visor 3D OpenGL, banner |
+| `ViewModels/` | 10 | 1.754 | Lógica de presentación MVVM, incluido `AppPage` |
+| `Views/` | 16 (`8 .axaml` + `8 .cs`) | 1.415 | Shell, ventanas modales y páginas embebidas |
+| `Controls/` | 3 | 641 | Visor 3D OpenGL, banner |
 | `Helpers/` | 4 | 494 | Argumentos, reglas, enmascarado de secretos, modelo de skin |
 | `Models/` | 5 | 284 | Config, cuentas, instancias, metadata de versión, Java |
-| Raíz | 4 | 170 | `Program.cs`, `App.axaml(.cs)`, `ViewLocator.cs` |
-| `tests/TVLauncher.Tests/` | 17 | 1.766 | Suite xUnit |
+| Raíz | 4 | 540 | `Program.cs`, `App.axaml(.cs)` con el design system, `ViewLocator.cs` |
+| `tests/TVLauncher.Tests/` | 20 | 2.099 | Suite xUnit |
 
 ### Historial
 
 ```
+este commit  feat(ui): shell con sidebar, dashboard de instancias y design system oscuro
+422b824 fix(auth): scopes OIDC completos, PKCE publico y client ID aprobado
+097e72e feat(modrinth): cancelar descarga y verificar SHA-512 del jar
+673595d fix(ui,modrinth): scroll en ventanas de instancia y descarga en streaming
+3992653 feat(accounts): cifrado AES-256-GCM de accounts.json y migraciones
 56392c3 feat(auth): Client ID propio de TVLauncher y verificacion del loopback
 431e10f docs: inventario tecnico completo y endpoint SMP por defecto
 0125004 docs(roadmap): tests, SHA1 y deuda de cifrado de cuentas
@@ -174,20 +179,30 @@ sin rastro del token en el archivo y segunda carga sin reescribir.
 `Program.cs` → `App.axaml.cs` (`ServiceCollection` + `ConfigureServices`) → `MainWindow` con
 `MainWindowViewModel`. Servicios como singleton; ViewModels y ventanas como transient.
 
+El **design system** vive en `App.axaml`: paleta oscura (fondo `#0F1115`, superficie `#1A1D24`,
+borde `#2A2E3B`, acento `#6C5CE7` con hover `#7D6FF0` y pressed `#5B4DFF`) y estilos globales
+para `Window`, `TextBlock` (`.h1/.h2/.caption/.label`), `Button` (`.primary/.ghost/.nav/.nav.active/.profile`),
+`Border.card/.pill`, `TextBox`, `ComboBox`, `CheckBox`, `NumericUpDown`, `ListBox.cards`,
+`ScrollViewer`/`ScrollBar`, `ProgressBar`, `TabItem` y `ToolTip`, con radios de 10–12 px y estados
+hover/pressed. `app.manifest` declara DPI awareness `PerMonitorV2` para que Windows no escale la
+ventana como mapa de bits.
+
 | Módulo | Vista / VM | Estado | Detalle |
 |---|---|---|---|
-| Ventana principal | `MainWindow` / `MainWindowViewModel` | ✅ | Cuenta activa, lista de instancias, acciones **JUGAR / EDITAR / CARPETA**, progreso, estado de juego |
-| **Visor 3D de skins** | `Controls/SkinPreviewGLControl` (603 líneas) / `SkinsPreviewViewModel` | ✅ | OpenGL vía Silk.NET: cuerpo completo, **capa exterior/hat**, transparencias, geometría cerrada sin huecos, encuadre centrado, rotación con puntero, auto-rotación, animación de caminar, classic/slim |
+| **Shell / ventana principal** | `MainWindow` / `MainWindowViewModel` | ✅ | Sidebar fija (Instancias, Tienda Modrinth, Cosméticos, Ajustes), header con avatar real desde `mc-heads.net/avatar/{user}` (fallback a iniciales), tarjeta de perfil con gamertag y estado, dashboard de instancias en tarjetas con selección clara, panel de detalle, progreso y barra inferior con **JUGAR** y estado del juego. Redimensionable 1200×720 (mínimo 1024×640) con chrome nativo |
+| Navegación interna | `AppPage` + comandos `Show*` | ✅ | Las cuatro secciones cambian de página dentro del shell sin abrir ventanas; `SettingsView`/`ModrinthView` se envuelven en un `Grid` con `IsVisible` para no alterar el `x:DataType` de los bindings compilados |
+| **Visor 3D de skins** | `Controls/SkinPreviewGLControl` (603 líneas) / `SkinsPreviewViewModel` | ✅ | OpenGL vía Silk.NET: cuerpo completo, **capa exterior/hat**, transparencias, geometría cerrada sin huecos, encuadre centrado, rotación con puntero, auto-rotación, animación de caminar, classic/slim. Solo se retocó la paleta del contenedor |
 | Skins y capas | `SkinService` | ✅ | `sessionserver.mojang.com` con fallback a Crafatar; caché de skin y capa |
 | **Armario / cosméticos** | `Views/CosmeticsView` / `CosmeticsService` | ⚠️ | Catálogo local, equipar/desequipar, inyección del jar en la instancia. **No hay CDN operativo**: `cdn.tvlauncher.net` no resuelve y `147.15.17.142` no expone 80/443 (ver §5) |
-| Gestor de instancias | `CreateInstanceWindow`, `InstanceEditWindow` | ✅ | Crear/editar/borrar; versión, modloader + versión de loader, RAM mín/máx, resolución, `JVMArgs`, Java, directorio. El formulario va dentro de un `ScrollViewer` con los botones anclados, así que se puede guardar en pantallas ajustadas |
+| Gestor de instancias | `CreateInstanceWindow`, `InstanceEditWindow` | ✅ | Crear/editar/borrar; versión, modloader + versión de loader, RAM mín/máx, resolución, `JVMArgs`, Java, directorio. Modales restilizados; el formulario va dentro de un `ScrollViewer` con los botones anclados, así que se puede guardar en pantallas ajustadas |
 | Wizard de primera ejecución | `SetupWizardWindow` / `SetupWizardViewModel` | ✅ | Gateado por `AppConfig.FirstRun`, `CompleteFirstRun()` |
-| Ajustes | `SettingsWindow` / `SettingsViewModel` | ✅ | Java, RAM, tema, Modrinth, cosméticos, SMP por defecto, cerrar al lanzar / mantener abierto |
-| **Modrinth** | `ModrinthBrowserWindow` / `ModrinthBrowserViewModel` + `ModrinthService` | ⚠️ | Búsqueda (query, versión, loader) con el **catálogo real de versiones** de `/v2/tag/game_version`; detalle, versiones y descarga del archivo primario a `{instance}/mods` por **streaming con barra de progreso**, `.part` atómico, **cancelación desde la UI** y **verificación SHA-512** contra `files[].hashes`. **No resuelve dependencias** ni instala `.mrpack` |
+| Cuentas | `AccountManagerWindow` / `AccountManagerViewModel` | ✅ | Añadir/cambiar/eliminar cuentas Microsoft; modal restilizado |
+| Ajustes | `Views/SettingsView` / `SettingsViewModel` | ✅ | Página embebida; Java, RAM, tema, Modrinth, cosméticos, SMP por defecto, cerrar al lanzar / mantener abierto. `CloseRequested` devuelve el control al shell |
+| **Modrinth** | `Views/ModrinthView` / `ModrinthBrowserViewModel` + `ModrinthService` | ⚠️ | Página embebida; búsqueda (query, versión, loader) con el **catálogo real de versiones** de `/v2/tag/game_version`; detalle, versiones y descarga del archivo primario a `{instance}/mods` por **streaming con barra de progreso**, `.part` atómico, **cancelación desde la UI** y **verificación SHA-512** contra `files[].hashes`. **No resuelve dependencias** ni instala `.mrpack` |
 | Servidor SMP por defecto | `InstanceManager.GenerateServersDat` | ⚠️ | Escribe `servers.dat`; por defecto apunta a `147.15.17.142:25565` (verificado: puerto abierto) |
-| Banner | `Controls/AdsBanner` | ℹ️ | Componente de banner en la vista principal |
+| Banner | `Controls/AdsBanner` | ℹ️ | Banner superior reestilizado y ocultable desde la vista principal |
 | i18n | — | ❌ | Texto hardcodeado en español; `Language` existe en config pero no se usa |
-| Accesibilidad / teclado | — | ❌ | No implementada |
+| Accesibilidad / teclado | ⚠️ | `AutomationProperties.Name` en navegación, tarjetas y avatares; navegación completa por teclado pendiente |
 
 ---
 
@@ -198,17 +213,17 @@ sin rastro del token en el archivo y segunda carga sin reescribir.
 | **SHA1 en descargas** | ✅ | `EnsureFileAsync(url, path, size, sha1, ct, fatal)` valida el `.part` **antes** de renombrarlo; si no coincide, borra el temporal y falla. Cubre `client.jar`, librerías, nativas, asset index, log config, metadata de versión y assets |
 | Política de reutilización | ⚠️ | Los archivos presentes se reutilizan **por tamaño** (revalidar todo cuesta ~12 s: 1.214 MB de assets + 536 MB de librerías + 187 MB de versiones) |
 | Rechazo de contenido corrupto | ✅ | Probado contra servidor HTTP local real: hash incorrecto → no se publica ni queda `.part` |
-| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **114 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
+| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **169 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
 | Aislamiento de tests | ✅ | `InternalsVisibleTo`, `tests/**` excluido del glob de compilación, `EnsureProfileJar` parametrizado, `ConfigService` con directorio inyectable, `ModrinthBrowserViewModel` con ctor interno sin carga remota |
-| Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado, 95 tras los arreglos de UI y Modrinth, 104 con cancelación y SHA-512, 114 con scopes y PKCE) |
+| Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado, 95 tras los arreglos de UI y Modrinth, 104 con cancelación y SHA-512, 114 con scopes y PKCE, 169 con el rediseño de UI) |
 | CI | ❌ | No hay pipeline |
 
-### Composición de la suite (114 casos = 109 métodos, 3 `[Theory]` con 8 entradas en total)
+### Composición de la suite (169 casos = 126 métodos, 9 `[Theory]` con 52 entradas en total)
 
 | Archivo | Casos | Qué garantiza |
 |---|---|---|
 | `RuleEvaluatorTests` | 10 | allow/disallow, `os`, `arch`, `features`, feature ausente = falsa, case-insensitive |
-| `SecretMaskerTests` | 6 | tokens Microsoft/XBL/XSTS/uhs, JSON compacto e **indentado**, enmascarar antes de truncar, nulos |
+| `SecretMaskerTests` | 7 | tokens Microsoft/XBL/XSTS/uhs, JSON compacto e **indentado**, enmascarar antes de truncar, nulos |
 | `FileIntegrityTests` | 10 | SHA1 conocido (`"abc"`), mismo tamaño + hash distinto, mayúsculas, tamaño desconocido, ausente |
 | `DownloadIntegrityTests` | 3 | Descarga real contra `TcpListener` local: hash correcto instala, incorrecto no publica, válido no re-descarga |
 | `VersionMergeTests` | 10 | log4j 2.8.1 → 2.15.0 sin duplicar, librerías del hijo primero, variantes de arquitectura, `ClientSourceId`, `mainClass` |
@@ -222,6 +237,9 @@ sin rastro del token en el archivo y segunda carga sin reescribir.
 | `GameVersionCatalogTests` | 5 | Parseo de `/v2/tag/game_version`: solo releases, orden descendente, sin duplicados, incluye versiones antiguas (1.8.9), JSON vacío o inválido |
 | `WindowLayoutTests` | 3 | Las ventanas de instancia tienen `ScrollViewer` y el botón de acción queda fuera del área desplazable |
 | `MicrosoftAuthRequestTests` | 10 | Scopes `openid profile offline_access XboxLive.signin` sin duplicados y URL-encoded, authorize con PKCE S256 y sin `client_secret`, challenge = Base64URL(SHA-256), formularios de token/device code, y explicación accionable del 403 `Invalid app registration` |
+| `UiThemeTests` | 25 | `App.axaml` define la paleta oscura y los estilos globales: `Button.primary/ghost/nav`, `Border.card/pill`, `TextBox`, `ComboBox`, `ListBox.cards`, `ScrollViewer`, `ProgressBar`, radios 10/12 y estados hover/pressed |
+| `MainWindowShellTests` | 18 | Shell: sidebar con Instancias/Modrinth/Cosméticos/Ajustes, navegación por `AppPage`, barra inferior con **JUGAR**, header de perfil y avatar con fallback a iniciales (`BuildInitials`) |
+| `SecondaryViewsThemeTests` | 12 | `SettingsView`, `ModrinthView`, `CosmeticsView`, `InstanceEditWindow` y `AccountManagerWindow` usan la paleta y los estilos del design system, sin colores legacy |
 
 ### Correcciones reales cerradas
 
@@ -306,7 +324,7 @@ cd TVLauncher
 git checkout <commit>
 
 dotnet build TVLauncher.csproj --configuration Debug       # 0 errores
-dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 104/104
+dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 169/169
 
 # Datos de usuario (fuera del repo):
 #   %LOCALAPPDATA%\TVLauncher\{config.json,accounts.json,accounts.key,instances\,assets\,libraries\,versions\}
