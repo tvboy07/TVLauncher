@@ -13,6 +13,14 @@ public partial class App : Application
 {
     public static IServiceProvider? ServiceProvider { get; private set; }
 
+    public static void SetMainWindow(Avalonia.Controls.Window window)
+    {
+        if (Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.MainWindow = window;
+        }
+    }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -22,42 +30,26 @@ public partial class App : Application
     {
         try
         {
-            Console.WriteLine("[TVLauncher] Inicializando aplicación...");
-            
             // Configure Dependency Injection
             var services = new ServiceCollection();
             ConfigureServices(services);
             ServiceProvider = services.BuildServiceProvider();
-            Console.WriteLine("[TVLauncher] DI configurado correctamente");
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                // Check if first run
                 var configService = ServiceProvider.GetRequiredService<ConfigService>();
-                Console.WriteLine($"[TVLauncher] FirstRun: {configService.Config.FirstRun}");
-                
+
                 if (configService.Config.FirstRun)
                 {
-                    Console.WriteLine("[TVLauncher] Abriendo SetupWizardWindow...");
-                    var setupWizard = ServiceProvider.GetRequiredService<SetupWizardWindow>();
-                    desktop.MainWindow = setupWizard;
-                    Console.WriteLine("[TVLauncher] SetupWizardWindow asignado");
+                    desktop.MainWindow = ServiceProvider.GetRequiredService<SetupWizardWindow>();
                 }
                 else
                 {
-                    Console.WriteLine("[TVLauncher] Abriendo MainWindow...");
-                    var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
-                    desktop.MainWindow = mainWindow;
-                    Console.WriteLine("[TVLauncher] MainWindow asignado correctamente");
+                    desktop.MainWindow = ServiceProvider.GetRequiredService<MainWindow>();
                 }
-            }
-            else
-            {
-                Console.WriteLine("[TVLauncher] ERROR: ApplicationLifetime no es IClassicDesktopStyleApplicationLifetime");
             }
 
             base.OnFrameworkInitializationCompleted();
-            Console.WriteLine("[TVLauncher] OnFrameworkInitializationCompleted finalizado");
         }
         catch (Exception ex)
         {
@@ -67,16 +59,8 @@ public partial class App : Application
             Console.WriteLine($"Exception: {ex.GetType().Name}");
             Console.WriteLine($"Message: {ex.Message}");
             Console.WriteLine($"StackTrace: {ex.StackTrace}");
-            if (ex.InnerException != null)
-            {
-                Console.WriteLine("----------------------------------------");
-                Console.WriteLine($"InnerException: {ex.InnerException.GetType().Name}");
-                Console.WriteLine($"InnerMessage: {ex.InnerException.Message}");
-                Console.WriteLine($"InnerStackTrace: {ex.InnerException.StackTrace}");
-            }
             Console.WriteLine("========================================");
-            
-            // Intentar mostrar ventana de error si es posible
+
             throw;
         }
     }
@@ -88,17 +72,19 @@ public partial class App : Application
         services.AddSingleton<AuthService>();
         services.AddSingleton<InstanceManager>();
         services.AddSingleton<MinecraftService>();
+        services.AddSingleton<JavaService>();
+        services.AddSingleton<GameFilesService>();
         services.AddSingleton<CosmeticsService>();
         services.AddSingleton<ModrinthService>();
         services.AddSingleton<SkinService>();
-        
+
         // ViewModels
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<SetupWizardViewModel>();
         services.AddTransient<SkinsPreviewViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<ModrinthBrowserViewModel>();
-        
+
         // Views
         services.AddTransient<MainWindow>();
         services.AddTransient<SetupWizardWindow>();
