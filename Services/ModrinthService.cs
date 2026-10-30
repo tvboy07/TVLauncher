@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -151,10 +152,12 @@ public class ModrinthService
     /// <summary>
     /// Descarga un archivo a disco por streaming, con progreso 0-100. Escribe en
     /// un <c>.part</c> y solo lo publica cuando el tamaño recibido coincide con el
-    /// declarado, para no dejar un mod corrupto en <c>mods/</c>.
+    /// declarado y, si se indica, el SHA-512 coincide con <paramref name="expectedSha512"/>,
+    /// para no dejar un mod corrupto en <c>mods/</c>.
     /// </summary>
     public async Task DownloadFileAsync(string url, string destinationPath,
-        IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        IProgress<double>? progress = null, CancellationToken cancellationToken = default,
+        string? expectedSha512 = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
@@ -211,6 +214,9 @@ public class ModrinthService
                 }
             }
 
+            if (!string.IsNullOrWhiteSpace(expectedSha512))
+                await VerifySha512Async(partPath, expectedSha512, cancellationToken);
+
             // El FileStream ya está cerrado: el rename funciona también en Windows.
             File.Move(partPath, destinationPath, overwrite: true);
             progress?.Report(100d);
@@ -221,6 +227,29 @@ public class ModrinthService
         {
             TryDelete(partPath);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Compara el SHA-512 del archivo descargado con el que publica Modrinth.
+    /// Se hace sobre el <c>.part</c>, antes de publicarlo como definitivo.
+    /// </summary>
+    private static async Task VerifySha512Async(string path, string expected, CancellationToken cancellationToken)
+    {
+        byte[] actualBytes;
+        await using (var stream = new FileStream(
+            path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
+        {
+            actualBytes = await SHA512.HashDataAsync(stream, cancellationToken);
+        }
+
+        string actual = Convert.ToHexString(actualBytes);
+
+        if (!string.Equals(actual, expected.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"El archivo descargado no coincide con el SHA-512 publicado por Modrinth " +
+                $"(esperado {expected.Trim()}, obtenido {actual}). Se descarta para no dejar un mod corrupto.");
         }
     }
 
@@ -309,6 +338,10 @@ public class ModrinthFile
     /// <summary>Tamaño del archivo en bytes (Modrinth lo publica en el listado de versiones).</summary>
     [JsonProperty("size")]
     public long Size { get; set; }
+
+    /// <summary>Hashes publicados por Modrinth; las claves habituales son <c>sha1</c> y <c>sha512</c>.</summary>
+    [JsonProperty("hashes")]
+    public Dictionary<string, string> Hashes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>Entrada de <c>/v2/tag/game_version</c>.</summary>

@@ -16,8 +16,8 @@
 | Métrica | Valor |
 |---|---|
 | Stack | C# / .NET 8.0 · Avalonia UI 11.1.3 · MVVM (CommunityToolkit) · DI (Microsoft.Extensions) |
-| Código fuente propio | **54 archivos / 8.915 líneas** (sin `bin`, `obj` ni tests) |
-| Tests | **15 archivos / 1.368 líneas / 95 casos** (xUnit) |
+| Código fuente propio | **54 archivos / 8.996 líneas** (sin `bin`, `obj` ni tests) |
+| Tests | **16 archivos / 1.641 líneas / 104 casos** (xUnit) |
 | Dependencias NuGet | 20 (Avalonia, Silk.NET.OpenGL, SkiaSharp, Newtonsoft.Json, CmlLib.Core residual) |
 | Commits | 11 previos + este documento |
 | Build | **0 errores**, advertencias preexistentes (`MVVMTK0034`, `AVLN3001`, nullable) |
@@ -29,14 +29,14 @@
 
 | Carpeta | Archivos | Líneas | Contenido |
 |---|---|---|---|
-| `Services/` | 13 | 4.240 | Núcleo de lanzamiento, auth, cuentas cifradas, instancias, cosméticos, Modrinth, skins |
-| `ViewModels/` | 9 | 1.564 | Lógica de presentación MVVM |
-| `Views/` | 16 (`8 .axaml` + `8 .cs`) | 1.523 | Ventanas y vistas Avalonia |
+| `Services/` | 13 | 4.268 | Núcleo de lanzamiento, auth, cuentas cifradas, instancias, cosméticos, Modrinth, skins |
+| `ViewModels/` | 9 | 1.600 | Lógica de presentación MVVM |
+| `Views/` | 16 (`8 .axaml` + `8 .cs`) | 1.540 | Ventanas y vistas Avalonia |
 | `Controls/` | 3 | 640 | Visor 3D OpenGL, banner |
 | `Helpers/` | 4 | 494 | Argumentos, reglas, enmascarado de secretos, modelo de skin |
 | `Models/` | 5 | 284 | Config, cuentas, instancias, metadata de versión, Java |
 | Raíz | 4 | 170 | `Program.cs`, `App.axaml(.cs)`, `ViewLocator.cs` |
-| `tests/TVLauncher.Tests/` | 15 | 1.368 | Suite xUnit |
+| `tests/TVLauncher.Tests/` | 16 | 1.641 | Suite xUnit |
 
 ### Historial
 
@@ -166,7 +166,7 @@ sin rastro del token en el archivo y segunda carga sin reescribir.
 | Gestor de instancias | `CreateInstanceWindow`, `InstanceEditWindow` | ✅ | Crear/editar/borrar; versión, modloader + versión de loader, RAM mín/máx, resolución, `JVMArgs`, Java, directorio. El formulario va dentro de un `ScrollViewer` con los botones anclados, así que se puede guardar en pantallas ajustadas |
 | Wizard de primera ejecución | `SetupWizardWindow` / `SetupWizardViewModel` | ✅ | Gateado por `AppConfig.FirstRun`, `CompleteFirstRun()` |
 | Ajustes | `SettingsWindow` / `SettingsViewModel` | ✅ | Java, RAM, tema, Modrinth, cosméticos, SMP por defecto, cerrar al lanzar / mantener abierto |
-| **Modrinth** | `ModrinthBrowserWindow` / `ModrinthBrowserViewModel` + `ModrinthService` | ⚠️ | Búsqueda (query, versión, loader) con el **catálogo real de versiones** de `/v2/tag/game_version`; detalle, versiones y descarga del archivo primario a `{instance}/mods` por **streaming con barra de progreso** y `.part` atómico. **No resuelve dependencias** ni instala `.mrpack` |
+| **Modrinth** | `ModrinthBrowserWindow` / `ModrinthBrowserViewModel` + `ModrinthService` | ⚠️ | Búsqueda (query, versión, loader) con el **catálogo real de versiones** de `/v2/tag/game_version`; detalle, versiones y descarga del archivo primario a `{instance}/mods` por **streaming con barra de progreso**, `.part` atómico, **cancelación desde la UI** y **verificación SHA-512** contra `files[].hashes`. **No resuelve dependencias** ni instala `.mrpack` |
 | Servidor SMP por defecto | `InstanceManager.GenerateServersDat` | ⚠️ | Escribe `servers.dat`; por defecto apunta a `147.15.17.142:25565` (verificado: puerto abierto) |
 | Banner | `Controls/AdsBanner` | ℹ️ | Componente de banner en la vista principal |
 | i18n | — | ❌ | Texto hardcodeado en español; `Language` existe en config pero no se usa |
@@ -181,12 +181,12 @@ sin rastro del token en el archivo y segunda carga sin reescribir.
 | **SHA1 en descargas** | ✅ | `EnsureFileAsync(url, path, size, sha1, ct, fatal)` valida el `.part` **antes** de renombrarlo; si no coincide, borra el temporal y falla. Cubre `client.jar`, librerías, nativas, asset index, log config, metadata de versión y assets |
 | Política de reutilización | ⚠️ | Los archivos presentes se reutilizan **por tamaño** (revalidar todo cuesta ~12 s: 1.214 MB de assets + 536 MB de librerías + 187 MB de versiones) |
 | Rechazo de contenido corrupto | ✅ | Probado contra servidor HTTP local real: hash incorrecto → no se publica ni queda `.part` |
-| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **95 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
-| Aislamiento de tests | ✅ | `InternalsVisibleTo`, `tests/**` excluido del glob de compilación, `EnsureProfileJar` parametrizado, `ConfigService` con directorio inyectable |
-| Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado, 95 tras los arreglos de UI y Modrinth) |
+| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **104 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
+| Aislamiento de tests | ✅ | `InternalsVisibleTo`, `tests/**` excluido del glob de compilación, `EnsureProfileJar` parametrizado, `ConfigService` con directorio inyectable, `ModrinthBrowserViewModel` con ctor interno sin carga remota |
+| Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado, 95 tras los arreglos de UI y Modrinth, 104 con cancelación y SHA-512) |
 | CI | ❌ | No hay pipeline |
 
-### Composición de la suite (95 casos = 90 métodos, 3 `[Theory]` con 8 entradas en total)
+### Composición de la suite (104 casos = 99 métodos, 3 `[Theory]` con 8 entradas en total)
 
 | Archivo | Casos | Qué garantiza |
 |---|---|---|
@@ -200,7 +200,8 @@ sin rastro del token en el archivo y segunda carga sin reescribir.
 | `AccountsCipherTests` | 14 | round-trip, sobre autocontenido, nonce distinto por sellado, sin fuga de texto plano, clave errónea, cifrado y tag manipulados, versión/algoritmo no soportados, sobres malformados, clave de tamaño incorrecto |
 | `AccountsStoreTests` | 12 | guardar/cargar, sobre en disco sin tokens, migración desde JSON plano, idempotencia (no reescribe), clave ausente o corrupta sin tocar los datos, archivo legacy corrupto, sin temporales, `chmod 600` en Unix |
 | `ConfigMigrationTests` | 5 | `play.tvlauncher.net` → IP real (también en mayúsculas), respeta hosts personalizados, no reescribe si no hay nada que migrar, instalación nueva con la IP real |
-| `ModrinthDownloadTests` | 5 | Streaming a disco contra servidor HTTP local: archivo íntegro en varios bloques, progreso monótono que termina en 100, error HTTP sin `.part`, cuerpo truncado que no se publica, sobrescritura atómica |
+| `ModrinthDownloadTests` | 10 | Streaming a disco contra servidor HTTP local: archivo íntegro en varios bloques, progreso monótono que termina en 100, error HTTP sin `.part`, cuerpo truncado que no se publica, sobrescritura atómica; SHA-512 correcto, incorrecto (rechazo + limpieza), en mayúsculas, ausente, y parseo de `hashes`/`size` |
+| `ModrinthBrowserViewModelTests` | 4 | Circuito del ViewModel: el jar acaba en `{instancia}/mods`, sin hash también descarga, hash erróneo deja mensaje de error y ningún archivo, y `CancelDownloadCommand` detiene la transferencia sin dejar `.part` |
 | `GameVersionCatalogTests` | 5 | Parseo de `/v2/tag/game_version`: solo releases, orden descendente, sin duplicados, incluye versiones antiguas (1.8.9), JSON vacío o inválido |
 | `WindowLayoutTests` | 3 | Las ventanas de instancia tienen `ScrollViewer` y el botón de acción queda fuera del área desplazable |
 
@@ -252,7 +253,6 @@ Notas:
 | Reintentos con backoff | Hoy un hash incorrecto aborta directamente |
 | Reanudación con `Range` | El `.part` existe pero no se reutiliza |
 | Verificación de archivos ya instalados | Hoy solo por tamaño (trade-off medido: ~12 s) |
-| Cancelación real en UI | El núcleo acepta `CancellationToken`; falta el flujo de cancelar y limpiar `.part` |
 | SHA1 del instalador de Forge | No se publica hash en el metadata |
 
 ### Testing / CI
@@ -288,7 +288,7 @@ cd TVLauncher
 git checkout <commit>
 
 dotnet build TVLauncher.csproj --configuration Debug       # 0 errores
-dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 95/95
+dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 104/104
 
 # Datos de usuario (fuera del repo):
 #   %LOCALAPPDATA%\TVLauncher\{config.json,accounts.json,accounts.key,instances\,assets\,libraries\,versions\}

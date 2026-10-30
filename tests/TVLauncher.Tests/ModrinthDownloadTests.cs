@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -102,10 +103,97 @@ public sealed class ModrinthDownloadTests
         Assert.Equal(body, await File.ReadAllBytesAsync(path));
     }
 
+    // ---------- SHA-512 ----------
+
+    [Fact]
+    public async Task DownloadFileAsync_WithMatchingSha512_PublishesTheFile()
+    {
+        byte[] body = Payload(128 * 1024);
+        using var temp = new TempDirectory();
+        using var server = new StreamingHttpServer(body);
+        var service = ServiceOver(temp);
+        string path = temp.Combine("mods", "pixelmon.jar");
+
+        await service.DownloadFileAsync(server.Url, path, progress: null, default, Sha512(body));
+
+        Assert.Equal(body, await File.ReadAllBytesAsync(path));
+        Assert.False(File.Exists(path + ".part"));
+    }
+
+    [Fact]
+    public async Task DownloadFileAsync_WithWrongSha512_RejectsTheFile()
+    {
+        byte[] body = Payload(64 * 1024);
+        using var temp = new TempDirectory();
+        using var server = new StreamingHttpServer(body);
+        var service = ServiceOver(temp);
+        string path = temp.Combine("mods", "manipulado.jar");
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(
+            () => service.DownloadFileAsync(server.Url, path, progress: null, default, new string('a', 128)));
+
+        Assert.Contains("SHA-512", error.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(path));
+        Assert.False(File.Exists(path + ".part"));
+    }
+
+    [Fact]
+    public async Task DownloadFileAsync_AcceptsAnUppercaseSha512()
+    {
+        byte[] body = Payload(8 * 1024);
+        using var temp = new TempDirectory();
+        using var server = new StreamingHttpServer(body);
+        var service = ServiceOver(temp);
+        string path = temp.Combine("mods", "mayusculas.jar");
+
+        await service.DownloadFileAsync(server.Url, path, progress: null, default, Sha512(body).ToUpperInvariant());
+
+        Assert.True(File.Exists(path));
+    }
+
+    [Fact]
+    public async Task DownloadFileAsync_WithoutHash_StillDownloads()
+    {
+        byte[] body = Payload(4 * 1024);
+        using var temp = new TempDirectory();
+        using var server = new StreamingHttpServer(body);
+        var service = ServiceOver(temp);
+        string path = temp.Combine("mods", "sin-hash.jar");
+
+        await service.DownloadFileAsync(server.Url, path, progress: null, default, expectedSha512: null);
+
+        Assert.Equal(body, await File.ReadAllBytesAsync(path));
+    }
+
+    [Fact]
+    public void ModrinthFile_ParsesTheSha512PublishedByTheApi()
+    {
+        const string payload = """
+            {
+              "url": "https://cdn.modrinth.com/data/59ZceYlU/versions/KjmzoXMR/Pixelmon-1.20.1-9.2.3-universal.jar",
+              "filename": "Pixelmon-1.20.1-9.2.3-universal.jar",
+              "primary": true,
+              "size": 411152237,
+              "hashes": {
+                "sha1": "aaaa",
+                "sha512": "b0f1c0ffee"
+              }
+            }
+            """;
+
+        var file = Newtonsoft.Json.JsonConvert.DeserializeObject<ModrinthFile>(payload)!;
+
+        Assert.Equal("b0f1c0ffee", file.Hashes["sha512"]);
+        Assert.Equal(411152237, file.Size);
+    }
+
     // ---------- utilidades ----------
 
     private static ModrinthService ServiceOver(TempDirectory temp)
         => new(new ConfigService(temp.Root));
+
+    private static string Sha512(byte[] data)
+        => Convert.ToHexString(SHA512.HashData(data)).ToLowerInvariant();
 
     private static byte[] Payload(int size)
     {

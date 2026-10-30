@@ -7,6 +7,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using TVLauncher.Models;
 using TVLauncher.Services;
@@ -17,6 +18,8 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
 {
     private readonly ModrinthService _modrinthService;
     private readonly InstanceManager _instanceManager;
+    private readonly bool _autoLoadRemoteData;
+    private CancellationTokenSource? _downloadCts;
 
     [ObservableProperty]
     private string _searchQuery = "";
@@ -55,20 +58,32 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
     public ObservableCollection<string> ModLoaders { get; } = new() { "fabric", "forge", "neoforge", "quilt" };
 
     public ModrinthBrowserViewModel(ModrinthService modrinthService, InstanceManager instanceManager)
+        : this(modrinthService, instanceManager, autoLoadRemoteData: true)
+    {
+    }
+
+    /// <summary>
+    /// Variante con <c>autoLoadRemoteData</c> para los tests (InternalsVisibleTo):
+    /// evita que el constructor dispare peticiones reales a Modrinth.
+    /// </summary>
+    internal ModrinthBrowserViewModel(ModrinthService modrinthService, InstanceManager instanceManager,
+        bool autoLoadRemoteData)
     {
         _modrinthService = modrinthService;
         _instanceManager = instanceManager;
+        _autoLoadRemoteData = autoLoadRemoteData;
 
         _modrinthService.StatusChanged += (s, msg) => StatusMessage = msg;
 
         // El desplegable arranca con una lista de respaldo y se sustituye por el
         // catálogo real de Modrinth en cuanto llega la respuesta.
-        _ = LoadGameVersionsAsync();
+        if (_autoLoadRemoteData)
+            _ = LoadGameVersionsAsync();
     }
 
     partial void OnSelectedProjectChanged(ModrinthProject? value)
     {
-        if (value != null)
+        if (value != null && _autoLoadRemoteData)
         {
             _ = LoadProjectVersionsAsync(value.ProjectId);
         }
@@ -80,7 +95,7 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
 
     private void ReloadVersionsIfProjectSelected()
     {
-        if (SelectedProject != null)
+        if (SelectedProject != null && _autoLoadRemoteData)
             _ = LoadProjectVersionsAsync(SelectedProject.ProjectId);
     }
 
@@ -162,6 +177,9 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
     [RelayCommand]
     private async Task DownloadMod()
     {
+        if (IsDownloading)
+            return; // ya hay una descarga en curso: usa Cancelar primero
+
         if (SelectedVersion == null || SelectedProject == null)
         {
             StatusMessage = "Selecciona una versión para descargar";
@@ -174,6 +192,12 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
             StatusMessage = "No hay instancia seleccionada";
             return;
         }
+
+        // Un solo CTS por descarga: el botón Cancelar activa este token y el
+        // servicio borra el .part antes de propagar la cancelación.
+        _downloadCts?.Dispose();
+        _downloadCts = new CancellationTokenSource();
+        CancellationToken token = _downloadCts.Token;
 
         try
         {
@@ -204,10 +228,16 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
                 StatusMessage = $"Descargando {SelectedProject.Title}... {value:0}%";
             });
 
-            await _modrinthService.DownloadFileAsync(primaryFile.Url, filePath, progress);
+            await _modrinthService.DownloadFileAsync(
+                primaryFile.Url, filePath, progress, token, GetSha512(primaryFile));
 
             DownloadProgress = 100;
             StatusMessage = $"{SelectedProject.Title} descargado correctamente a {instance.Name}";
+        }
+        catch (OperationCanceledException)
+        {
+            DownloadProgress = 0;
+            StatusMessage = "Descarga cancelada";
         }
         catch (Exception ex)
         {
@@ -217,6 +247,17 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
         {
             IsDownloading = false;
             IsLoading = false;
+            _downloadCts?.Dispose();
+            _downloadCts = null;
         }
     }
+
+    [RelayCommand]
+    private void CancelDownload() => _downloadCts?.Cancel();
+
+    /// <summary>SHA-512 publicado por Modrinth para el archivo, si está disponible.</summary>
+    private static string? GetSha512(ModrinthFile file)
+        => file.Hashes
+            .FirstOrDefault(hash => string.Equals(hash.Key, "sha512", StringComparison.OrdinalIgnoreCase))
+            .Value;
 }

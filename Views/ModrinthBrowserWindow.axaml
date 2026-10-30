@@ -191,8 +191,25 @@
                          Value="{Binding DownloadProgress}"
                          IsVisible="{Binding IsDownloading}"
                          Height="6"/>
-            <TextBlock Text="{Binding StatusMessage}" 
-                       Foreground="#AAAAAA"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusMessage}" 
+                           Foreground="#AAAAAA"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Content="CANCELAR DESCARGA"
+                        Command="{Binding CancelDownloadCommand}"
+                        IsVisible="{Binding IsDownloading}"
+                        Background="#7A1F1F"
+                        Foreground="White"
+                        Padding="12,6"
+                        Margin="10,0,0,0"/>
+            </Grid>
         </StackPanel>
     </Grid>
 </Window>
