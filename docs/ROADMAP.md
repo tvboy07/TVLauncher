@@ -46,7 +46,7 @@ Models/                   Config, instancias, cuentas, metadata de versión, Jav
 ## Estado actual
 
 - Build: **0 errores** (9 advertencias preexistentes de MVVM/Avalonia).
-- Sin proyecto de tests todavía.
+- Tests: **48** en `tests/TVLauncher.Tests` (xUnit, sin red ni archivos reales del juego).
 - Arranque verificado de extremo a extremo (hasta el menú principal):
 
 | Versión | Java | Resultado |
@@ -89,13 +89,17 @@ Fallo real simulado (JVM con flag inválido): el stack de `stderr` aparece en
 ### Fase 2 — Estabilización 🔵 (en curso)
 - [x] `.gitignore` corregido y limpieza de artefactos (`obj.zip`)
 - [x] Historial por bloques lógicos (núcleo, autorización/UI)
-- [ ] Proyecto de tests (xUnit) para `RuleEvaluator`, `LaunchArgumentsBuilder`,
-      `MergeVersions`/`LibraryKey`, `EnsureProfileJar`
+- [x] Proyecto de tests (xUnit) para `RuleEvaluator`, `LaunchArgumentsBuilder`,
+      `MergeVersions`/`LibraryKey`, `EnsureProfileJar`, `SecretMasker` y SHA1
+- [x] Verificación **SHA1** de las descargas: el `.part` se valida contra el hash
+      publicado por el metadata antes de pasar a ser definitivo (client.jar,
+      librerías, nativas, asset index, log config, metadata y assets)
+- [x] Tokens enmascarados en los logs (`SecretMasker`)
 - [ ] Matriz de arranque automatizada (script reproducible, sin harness manual)
 - [ ] Cubrir 1.16.1 y 1.17–1.19 en la matriz
-- [ ] Verificación **SHA1** de descargas (hoy solo se comprueba tamaño)
 - [ ] Reintentos/reanudación de descargas y cancelación real
-
+- [ ] Verificar integridad de archivos ya presentes (hoy la reutilización se decide
+      por tamaño para no re–hashear 1.2 GB en cada arranque: ~12 s medidos)
 ### Fase 3 — Calidad de producto ⬜
 - [ ] Diagnóstico visible en la UI (ver/copiar log, abrir crash report)
 - [ ] Manejo de errores accionable (mensajes que digan qué hacer)
@@ -118,18 +122,25 @@ Fallo real simulado (JVM con flag inválido): el stack de `stderr` aparece en
 
 ## Deuda técnica conocida
 
-1. Sin tests automatizados: la lógica delicada (reglas, placeholders, fusión de
-   metadata, jar del perfil) se validó manualmente.
-2. Descargas verificadas solo por tamaño, no por checksum.
-3. Logs de Minecraft acumulativos: se rotan a `.old.log` al superar 5 MB, por lo que
+1. Tests automatizados: cubren reglas, placeholders, fusión de metadata, jar del
+   perfil, enmascarado de secretos y validación SHA1. Siguen sin cubrir la matriz
+   de arranque real (se prueba a mano).
+2. Descargas verificadas por SHA1 al descargar; los archivos ya presentes se
+   reutilizan comprobando solo el tamaño (revalidar todo cuesta ~12 s por arranque).
+3. **`accounts.json` guarda `AccessToken` y `RefreshToken` en claro** en
+   `%LOCALAPPDATA%\TVLauncher`. Pendiente: cifrado con DPAPI (`ProtectedData`,
+   solo Windows) o AES con clave derivada de la máquina si se mantiene el soporte
+   multiplataforma. Decisión pendiente de definir el alcance de plataformas.
+4. Logs de Minecraft acumulativos: se rotan a `.old.log` al superar 5 MB, por lo que
    una sesión anterior puede convivir con la actual en el mismo archivo.
-4. `README.md` desactualizado respecto al núcleo propio.
-5. Cobertura de versiones verificada a mano; falta automatizarla.
+5. `README.md` desactualizado respecto al núcleo propio.
+6. Cobertura de versiones verificada a mano; falta automatizarla.
 
 ## Cómo verificar un cambio
 
 ```powershell
 dotnet build TVLauncher.csproj --configuration Debug
+dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj
 # Arrancar la app y lanzar una instancia; revisar:
 #   %LOCALAPPDATA%\TVLauncher\logs\tvlauncher.log
 #   %LOCALAPPDATA%\TVLauncher\logs\minecraft-console.log
