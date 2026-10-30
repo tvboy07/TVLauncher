@@ -28,6 +28,10 @@ public class AppConfig
     public string MicrosoftClientId { get; set; } = string.Empty;
     
     // Cosmetics configuration
+    // Pendiente: no hay CDN operativo. cdn.tvlauncher.net no resuelve y la IP del
+    // servidor (147.15.17.142) no expone 80/443, así que servir por HTTPS contra la
+    // IP tampoco valida el certificado. Se deja el hostname hasta publicar el jar
+    // o decidir retirar el CDN de la configuración por defecto.
     public string CosmeticsJarUrl { get; set; } = "https://cdn.tvlauncher.net/cosmetics/tvl-cosmetics.jar";
     public bool AutoInjectCosmetics { get; set; } = true;
     
@@ -39,7 +43,10 @@ public class AppConfig
 public class DefaultSmpServer
 {
     public string Name { get; set; } = "TVLauncher SMP";
-    public string Ip { get; set; } = "play.tvlauncher.net";
+
+    /// <summary>IP pública del servidor SMP por defecto (147.15.17.142:25565).</summary>
+    public string Ip { get; set; } = "147.15.17.142";
+
     public int Port { get; set; } = 25565;
     public bool HiddenAddress { get; set; } = false;
 }
