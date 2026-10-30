@@ -105,15 +105,31 @@ contienen la causa (`[stderr]` y/o `crash-reports`).
 |---|---|---|
 | OAuth 2.0 Microsoft (v2, `consumers`) | ✅ | `MicrosoftAuthService`, `login.microsoftonline.com/consumers/oauth2/v2.0/*` |
 | **Authorization Code + PKCE** | ✅ | `code_verifier` / `code_challenge` S256; **sin `client_secret`** (app pública) |
-| Redirect loopback | ✅ | `TcpListener` en `http://localhost:{puerto}/`, puerto efímero, navegador del sistema |
+| Redirect loopback | ✅ | `TcpListener` en `http://localhost:{puerto}/` (prefiere 1337, cae a puerto efímero), navegador del sistema. Requiere `http://localhost` registrado en Azure; Entra ID ignora el puerto pero **compara la ruta** (`/`) |
 | **Fallback a Device Code** | ✅ | `authorization_pending` / `slow_down` (incremento de intervalo) y expiración |
 | Cadena Xbox → Minecraft | ✅ | XBL → XSTS → `login_with_xbox` → perfil |
-| Client ID configurable | ✅ | `AppConfig.MicrosoftClientId` (vacío → app pública `c36a9fb6-…`); sustituible sin recompilar |
+| Client ID configurable | ✅ | `AppConfig.MicrosoftClientId` (vacío → app pública `38c4f9ed-…`, registrada como **TVLauncher**); sustituible sin recompilar |
 | Cuentas offline | ✅ | Nombre de usuario y UUID determinista |
 | Gestión de cuentas | ✅ | Alta, selección activa, borrado, persistencia en `accounts.json` |
 | Persistencia de sesión | ⚠️ | `AccessToken` y `RefreshToken` **en claro** en `%LOCALAPPDATA%\TVLauncher\accounts.json` (cifrado pendiente) |
 | Enmascarado de tokens en logs | ✅ | `Helpers/SecretMasker` — `access_token`, `refresh_token`, `id_token`, `Token`, `AuthorizationToken`, `user_hash`, `uhs` → `***`; enmascara **antes** de truncar |
 | Renovación de token | ⚠️ | Se persiste `refresh_token`, pero no hay refresh proactivo: al caducar hay que reautenticar |
+
+### Registro de la app en Azure (verificado el 30/10/2026)
+
+La app **TVLauncher** (`38c4f9ed-0484-4a22-a192-9be8b172ab16`) responde en el endpoint
+`/consumers/`, es decir, admite **cuentas personales**. Para que el flujo de Authorization Code
+funcione, la app debe tener además:
+
+| Requisito | Valor | Motivo |
+|---|---|---|
+| Redirect URI (plataforma **Mobile and desktop applications**) | `http://localhost` | El código envía `http://localhost:{puerto}/`; Entra ID ignora el puerto en loopback pero **no** la ruta |
+| Allow public client flows | **Yes** | Device Code Flow (respaldo) y PKCE sin `client_secret` |
+
+Si falta el redirect URI, Entra devuelve `invalid_request: The provided value for the input
+parameter 'redirect_uri' is not valid` en la página del navegador, el listener nunca recibe el
+callback y, tras 3 minutos de espera, se cae al Device Code. `http://127.0.0.1:puerto` **no**
+es equivalente a `http://localhost:puerto` para Entra ID.
 
 ---
 

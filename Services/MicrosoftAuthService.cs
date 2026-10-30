@@ -25,10 +25,11 @@ namespace TVLauncher.Services;
 /// </summary>
 public class MicrosoftAuthService
 {
-    // Client ID v2 (Azure-AD GUID) de una app pública registrada. Los IDs v1 de
-    // 16 hex (p. ej. el antiguo de Mojang "00000000402b5328") son rechazados por
-    // el endpoint v2 con AADSTS70001 -> HTTP 400.
-    private const string DefaultClientId = "c36a9fb6-4f2a-41ff-90bd-ae7cc92031eb";
+    // Client ID v2 (Azure-AD GUID) de la app pública "TVLauncher" registrada por el
+    // proyecto. Los IDs v1 de 16 hex (p. ej. el antiguo de Mojang "00000000402b5328")
+    // son rechazados por el endpoint v2 con AADSTS70001 -> HTTP 400.
+    // Se puede sustituir sin recompilar con AppConfig.MicrosoftClientId.
+    private const string DefaultClientId = "38c4f9ed-0484-4a22-a192-9be8b172ab16";
     private const string Scope = "XboxLive.signin offline_access";
 
     private const string AuthorizeUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
