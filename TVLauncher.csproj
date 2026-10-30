@@ -16,6 +16,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- El proyecto de tests vive dentro de la carpeta del proyecto principal:
+         excluirlo del glob de compilación (si no, xUnit se compila dentro de la app). -->
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <AvaloniaXaml Remove="tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- El proyecto de tests necesita ver los helpers internos que se validan
+         de forma aislada (MergeVersions, LibraryKey, EnsureProfileJar, SHA1). -->
+    <InternalsVisibleTo Include="TVLauncher.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Models\" />
     <Folder Include="Views\" />
     <Folder Include="ViewModels\" />

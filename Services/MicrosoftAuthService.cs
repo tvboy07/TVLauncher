@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using TVLauncher.Helpers;
 
 namespace TVLauncher.Services;
 
@@ -249,7 +250,7 @@ public class MicrosoftAuthService
 
         var response = await _http.PostAsync(TokenUrl, content, cancellationToken);
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
-        Log.Info($"[MSAuth] Token (authorization_code) -> HTTP {(int)response.StatusCode}: {Truncate(json)}");
+        Log.Info($"[MSAuth] Token (authorization_code) -> HTTP {(int)response.StatusCode}: {SecretMasker.MaskAndTruncate(json)}");
 
         if (!response.IsSuccessStatusCode)
         {
@@ -460,7 +461,7 @@ public class MicrosoftAuthService
 
             var response = await _http.PostAsync(TokenUrl, content, cancellationToken);
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
-            Log.Info($"[MSAuth] Token poll -> HTTP {(int)response.StatusCode}: {json}");
+            Log.Info($"[MSAuth] Token poll -> HTTP {(int)response.StatusCode}: {SecretMasker.MaskAndTruncate(json)}");
 
             if (response.IsSuccessStatusCode)
             {
@@ -500,7 +501,7 @@ public class MicrosoftAuthService
         var content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
         var response = await _http.PostAsync(XblUrl, content, cancellationToken);
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
-        Log.Info($"[MSAuth] XBL -> HTTP {(int)response.StatusCode}: {Truncate(json)}");
+        Log.Info($"[MSAuth] XBL -> HTTP {(int)response.StatusCode}: {SecretMasker.MaskAndTruncate(json)}");
 
         if (!response.IsSuccessStatusCode)
             throw new Exception($"Error Xbox Live ({(int)response.StatusCode}): {json}");
@@ -525,7 +526,7 @@ public class MicrosoftAuthService
         var content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
         var response = await _http.PostAsync(XstsUrl, content, cancellationToken);
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
-        Log.Info($"[MSAuth] XSTS -> HTTP {(int)response.StatusCode}: {Truncate(json)}");
+        Log.Info($"[MSAuth] XSTS -> HTTP {(int)response.StatusCode}: {SecretMasker.MaskAndTruncate(json)}");
 
         if (!response.IsSuccessStatusCode)
             throw new Exception($"Error XSTS ({(int)response.StatusCode}): {json}");
@@ -544,7 +545,7 @@ public class MicrosoftAuthService
         var content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
         var response = await _http.PostAsync(MinecraftAuthUrl, content, cancellationToken);
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
-        Log.Info($"[MSAuth] Minecraft -> HTTP {(int)response.StatusCode}: {Truncate(json)}");
+        Log.Info($"[MSAuth] Minecraft -> HTTP {(int)response.StatusCode}: {SecretMasker.MaskAndTruncate(json)}");
 
         if (!response.IsSuccessStatusCode)
             throw new Exception($"Error autenticándose con Minecraft ({(int)response.StatusCode}): {json}");
@@ -552,8 +553,6 @@ public class MicrosoftAuthService
         var result = JsonSerializer.Deserialize<MinecraftAuthResponse>(json);
         return result ?? throw new Exception("Error al autenticar con Minecraft Services: respuesta vacía");
     }
-
-    private static string Truncate(string value) => value.Length > 300 ? value[..300] + "..." : value;
 
     private async Task<MinecraftProfile> GetMinecraftProfileAsync(string accessToken, CancellationToken cancellationToken)
     {
