@@ -1,7 +1,7 @@
 # TVLauncher — Inventario técnico y matriz de características
 
 > Documento de referencia para revisión externa. Refleja el estado real del repositorio
-> en el commit `0125004` (30/10/2026) más este documento.
+> en la rama `main` a 30/10/2026.
 > Mantener actualizado junto con `docs/ROADMAP.md`.
 
 - **Versión:** 1.0.0
@@ -16,30 +16,33 @@
 | Métrica | Valor |
 |---|---|
 | Stack | C# / .NET 8.0 · Avalonia UI 11.1.3 · MVVM (CommunityToolkit) · DI (Microsoft.Extensions) |
-| Código fuente propio | **52 archivos / 8.396 líneas** (sin `bin`, `obj` ni tests) |
-| Tests | **9 archivos / 750 líneas / 51 casos** (xUnit) |
+| Código fuente propio | **54 archivos / 8.740 líneas** (sin `bin`, `obj` ni tests) |
+| Tests | **12 archivos / 1.107 líneas / 82 casos** (xUnit) |
 | Dependencias NuGet | 20 (Avalonia, Silk.NET.OpenGL, SkiaSharp, Newtonsoft.Json, CmlLib.Core residual) |
-| Commits | 9 previos + este documento |
-| Build | **0 errores**, 9 advertencias preexistentes (`MVVMTK0034`, `AVLN3001`, nullable) |
+| Commits | 11 previos + este documento |
+| Build | **0 errores**, advertencias preexistentes (`MVVMTK0034`, `AVLN3001`, nullable) |
 | Superficie de UI | 8 ventanas/vistas, 9 ViewModels, 9 servicios singleton |
 | Verificación de arranque | 8 combinaciones de versión/modloader llevadas al menú principal |
+| Cifrado en disco | **AES-256-GCM** para `accounts.json` con clave local y migración automática |
 
 ### Distribución del código
 
 | Carpeta | Archivos | Líneas | Contenido |
 |---|---|---|---|
-| `Services/` | 11 | 3.770 | Núcleo de lanzamiento, auth, instancias, cosméticos, Modrinth, skins |
+| `Services/` | 13 | 4.107 | Núcleo de lanzamiento, auth, cuentas cifradas, instancias, cosméticos, Modrinth, skins |
 | `ViewModels/` | 9 | 1.525 | Lógica de presentación MVVM |
 | `Views/` | 16 (`8 .axaml` + `8 .cs`) | 1.520 | Ventanas y vistas Avalonia |
 | `Controls/` | 3 | 640 | Visor 3D OpenGL, banner |
 | `Helpers/` | 4 | 494 | Argumentos, reglas, enmascarado de secretos, modelo de skin |
-| `Models/` | 5 | 277 | Config, cuentas, instancias, metadata de versión, Java |
+| `Models/` | 5 | 284 | Config, cuentas, instancias, metadata de versión, Java |
 | Raíz | 4 | 170 | `Program.cs`, `App.axaml(.cs)`, `ViewLocator.cs` |
-| `tests/TVLauncher.Tests/` | 9 | 750 | Suite xUnit |
+| `tests/TVLauncher.Tests/` | 12 | 1.107 | Suite xUnit |
 
 ### Historial
 
 ```
+56392c3 feat(auth): Client ID propio de TVLauncher y verificacion del loopback
+431e10f docs: inventario tecnico completo y endpoint SMP por defecto
 0125004 docs(roadmap): tests, SHA1 y deuda de cifrado de cuentas
 7133b01 feat(downloads,test): verificacion SHA1 de descargas y suite xUnit del nucleo
 dc1ae0a feat(security): enmascarado de tokens en los logs de autenticacion
@@ -111,7 +114,9 @@ contienen la causa (`[stderr]` y/o `crash-reports`).
 | Client ID configurable | ✅ | `AppConfig.MicrosoftClientId` (vacío → app pública `38c4f9ed-…`, registrada como **TVLauncher**); sustituible sin recompilar |
 | Cuentas offline | ✅ | Nombre de usuario y UUID determinista |
 | Gestión de cuentas | ✅ | Alta, selección activa, borrado, persistencia en `accounts.json` |
-| Persistencia de sesión | ⚠️ | `AccessToken` y `RefreshToken` **en claro** en `%LOCALAPPDATA%\TVLauncher\accounts.json` (cifrado pendiente) |
+| Persistencia de sesión | ✅ | `accounts.json` cifrado con **AES-256-GCM** (`System.Security.Cryptography.AesGcm`): sobre `{version, alg, nonce, tag, data}` en Base64, nonce aleatorio de 12 bytes por escritura y tag de 16 |
+| Clave de cifrado | ✅ | 32 bytes aleatorios en `%LOCALAPPDATA%\TVLauncher\accounts.key`; `chmod 600` en Unix (`File.SetUnixFileMode`), ACL del perfil en Windows; escritura atómica |
+| Migración de `accounts.json` | ✅ | Un array JSON plano se lee, se reescribe cifrado y se continúa sin intervención. Si falta la clave o no corresponde, falla de forma explícita y **no** sobrescribe las cuentas |
 | Enmascarado de tokens en logs | ✅ | `Helpers/SecretMasker` — `access_token`, `refresh_token`, `id_token`, `Token`, `AuthorizationToken`, `user_hash`, `uhs` → `***`; enmascara **antes** de truncar |
 | Renovación de token | ⚠️ | Se persiste `refresh_token`, pero no hay refresh proactivo: al caducar hay que reautenticar |
 
@@ -130,6 +135,20 @@ Si falta el redirect URI, Entra devuelve `invalid_request: The provided value fo
 parameter 'redirect_uri' is not valid` en la página del navegador, el listener nunca recibe el
 callback y, tras 3 minutos de espera, se cae al Device Code. `http://127.0.0.1:puerto` **no**
 es equivalente a `http://localhost:puerto` para Entra ID.
+
+### Cifrado en disco de las cuentas
+
+| Pieza | Implementación |
+|---|---|
+| Algoritmo | AES-256-GCM nativo (`AesGcm`), no DPAPI: mismo código en Windows, Linux y macOS |
+| Sobre | `{"version":1,"alg":"AES-256-GCM","nonce":"…","tag":"…","data":"…"}` (Base64); la cabecera se autentica como datos asociados |
+| Clave | 32 bytes de `RandomNumberGenerator` en `accounts.key`; `chmod 600` en Unix, ACL del perfil en Windows |
+| Escritura | Temporal + rename atómico (`.part`), nunca deja el archivo a medias |
+| Migración | Array JSON plano → se cifra en el primer arranque; idempotente (el archivo no se reescribe si ya es un sobre) |
+| Fallo seguro | Sin clave o con clave incorrecta se lanza un error explícito y se bloquea el guardado, para no sobrescribir las cuentas |
+
+Verificado sobre una copia de un `accounts.json` real: 1 cuenta migrada sin pérdida de campos,
+sin rastro del token en el archivo y segunda carga sin reescribir.
 
 ---
 
@@ -162,12 +181,12 @@ es equivalente a `http://localhost:puerto` para Entra ID.
 | **SHA1 en descargas** | ✅ | `EnsureFileAsync(url, path, size, sha1, ct, fatal)` valida el `.part` **antes** de renombrarlo; si no coincide, borra el temporal y falla. Cubre `client.jar`, librerías, nativas, asset index, log config, metadata de versión y assets |
 | Política de reutilización | ⚠️ | Los archivos presentes se reutilizan **por tamaño** (revalidar todo cuesta ~12 s: 1.214 MB de assets + 536 MB de librerías + 187 MB de versiones) |
 | Rechazo de contenido corrupto | ✅ | Probado contra servidor HTTP local real: hash incorrecto → no se publica ni queda `.part` |
-| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **51 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
-| Aislamiento de tests | ✅ | `InternalsVisibleTo`, `tests/**` excluido del glob de compilación, `EnsureProfileJar` parametrizado |
-| Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`) |
+| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **82 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
+| Aislamiento de tests | ✅ | `InternalsVisibleTo`, `tests/**` excluido del glob de compilación, `EnsureProfileJar` parametrizado, `ConfigService` con directorio inyectable |
+| Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado) |
 | CI | ❌ | No hay pipeline |
 
-### Composición de la suite (51 casos = 50 métodos, 1 `[Theory]` con 2 entradas)
+### Composición de la suite (82 casos = 78 métodos, 2 `[Theory]` con 6 entradas en total)
 
 | Archivo | Casos | Qué garantiza |
 |---|---|---|
@@ -178,6 +197,9 @@ es equivalente a `http://localhost:puerto` para Entra ID.
 | `VersionMergeTests` | 10 | log4j 2.8.1 → 2.15.0 sin duplicar, librerías del hijo primero, variantes de arquitectura, `ClientSourceId`, `mainClass` |
 | `LaunchArgumentsBuilderTests` | 7 | placeholders, `${version_name}` al perfil resuelto, reglas por features, legacy con `-cp`, `ToLogString` enmascarado |
 | `ProfileJarTests` | 4 | copia atómica, respeta jar propio (OptiFine), no copia sin `${version_name}` |
+| `AccountsCipherTests` | 14 | round-trip, sobre autocontenido, nonce distinto por sellado, sin fuga de texto plano, clave errónea, cifrado y tag manipulados, versión/algoritmo no soportados, sobres malformados, clave de tamaño incorrecto |
+| `AccountsStoreTests` | 12 | guardar/cargar, sobre en disco sin tokens, migración desde JSON plano, idempotencia (no reescribe), clave ausente o corrupta sin tocar los datos, archivo legacy corrupto, sin temporales, `chmod 600` en Unix |
+| `ConfigMigrationTests` | 5 | `play.tvlauncher.net` → IP real (también en mayúsculas), respeta hosts personalizados, no reescribe si no hay nada que migrar, instalación nueva con la IP real |
 
 ### Correcciones reales cerradas
 
@@ -187,10 +209,10 @@ es equivalente a `http://localhost:puerto` para Entra ID.
 
 ### Auditoría de seguridad
 
-- **0** secretos, API keys, contraseñas o claves privadas en los archivos trackeados **ni en los 9 commits del historial** (`git log --all -p`).
+- **0** secretos, API keys, contraseñas o claves privadas en los archivos trackeados **ni en todo el historial** (`git log --all -p`).
 - Único identificador: `DefaultClientId` (público por diseño, app pública con PKCE). **Ningún `client_secret`**.
 - Sin binarios versionados, sin `appsettings*.json`, sin credenciales en la URL del remoto.
-- Riesgo residual **local, no de repositorio**: `accounts.json` en claro y tokens históricos en logs (limpiados).
+- `accounts.json` cifrado con AES-256-GCM: una copia suelta del archivo no expone tokens. La clave vive en el mismo directorio, así que esto protege ante lectores del archivo o backups, **no** ante código que se ejecute como el mismo usuario.
 
 ---
 
@@ -218,7 +240,6 @@ Notas:
 
 | Pendiente | Notas |
 |---|---|
-| **Cifrado de `accounts.json`** | **AES-GCM** nativo (`System.Security.Cryptography.AesGcm`) para Windows/Linux/macOS, clave local con permisos restrictivos (chmod 600 en Unix) y **migración automática** del JSON plano. Decisión tomada: multiplataforma con AES-GCM. |
 | Refresh proactivo de token | Evitar reautenticación manual al caducar |
 
 ### Descargas y robustez
@@ -264,10 +285,10 @@ cd TVLauncher
 git checkout <commit>
 
 dotnet build TVLauncher.csproj --configuration Debug       # 0 errores
-dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 51/51
+dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 82/82
 
 # Datos de usuario (fuera del repo):
-#   %LOCALAPPDATA%\TVLauncher\{config.json,accounts.json,instances\,assets\,libraries\,versions\}
+#   %LOCALAPPDATA%\TVLauncher\{config.json,accounts.json,accounts.key,instances\,assets\,libraries\,versions\}
 #   %LOCALAPPDATA%\TVLauncher\logs\{tvlauncher.log,minecraft-console.log}
 ```
 
@@ -276,5 +297,5 @@ dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 51/51
 1. **Funciona de verdad**: 8 combinaciones de versión/modloader arrancan hasta el menú, incluidos Forge legacy (1.7.10) y NeoForge 1.21.1.
 2. **El activo principal es el motor propio**: control total de classpath, nativos, argumentos y diagnóstico; permite arreglar crashes que un launcher de librería oculta.
 3. **La deuda más cara es la operativa**: sin CI ni matriz automatizada, cada regresión se detecta jugando.
-4. **Riesgo de seguridad contenido**: repo limpio; el problema está en el disco del usuario (`accounts.json` en claro) y ya tiene plan (AES-GCM + migración).
+4. **Riesgo de seguridad contenido**: repo limpio y `accounts.json` cifrado con AES-256-GCM (clave local, migración automática). La clave vive en el mismo directorio: protege el archivo, no a un atacante que ya ejecute código como el usuario.
 5. **Un endpoint del producto no existe** (CDN de cosméticos): decidir entre publicarlo o retirarlo antes de distribuir.

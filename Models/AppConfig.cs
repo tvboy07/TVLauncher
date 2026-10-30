@@ -42,10 +42,13 @@ public class AppConfig
 
 public class DefaultSmpServer
 {
+    /// <summary>IP pública del servidor SMP por defecto (puerto 25565 verificado abierto).</summary>
+    public const string DefaultIp = "147.15.17.142";
+
     public string Name { get; set; } = "TVLauncher SMP";
 
     /// <summary>IP pública del servidor SMP por defecto (147.15.17.142:25565).</summary>
-    public string Ip { get; set; } = "147.15.17.142";
+    public string Ip { get; set; } = DefaultIp;
 
     public int Port { get; set; } = 25565;
     public bool HiddenAddress { get; set; } = false;

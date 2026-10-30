@@ -8,21 +8,36 @@ namespace TVLauncher.Services;
 
 public class ConfigService
 {
+    /// <summary>
+    /// Hostname placeholder que se distribuyó en versiones anteriores como
+    /// servidor SMP por defecto. Ya no resuelve por DNS.
+    /// </summary>
+    internal const string LegacySmpHost = "play.tvlauncher.net";
+
     private readonly string _configDirectory;
     private readonly string _configFilePath;
     public AppConfig Config { get; private set; }
 
     public ConfigService()
+        : this(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "TVLauncher"))
+    {
+    }
+
+    /// <summary>
+    /// Variante con directorio explícito. Solo para tests (InternalsVisibleTo):
+    /// permite ejercitar la carga y la migración de <c>config.json</c> en una
+    /// carpeta temporal sin tocar <c>%LOCALAPPDATA%</c>.
+    /// </summary>
+    internal ConfigService(string configDirectory)
     {
         // Crear directorio de datos en AppData/Local/TVLauncher
-        _configDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TVLauncher"
-        );
-        
+        _configDirectory = configDirectory;
+
         _configFilePath = Path.Combine(_configDirectory, "config.json");
         Config = new AppConfig();
-        
+
         Initialize();
     }
 
@@ -78,6 +93,12 @@ public class ConfigService
                     {
                         Config.DataPath = _configDirectory;
                     }
+
+                    // Endpoints placeholder de versiones anteriores.
+                    if (MigrateLegacyEndpoints())
+                    {
+                        SaveConfig();
+                    }
                 }
             }
         }
@@ -87,6 +108,27 @@ public class ConfigService
             // Usar configuración por defecto en caso de error
             Config = new AppConfig { DataPath = _configDirectory };
         }
+    }
+
+    /// <summary>
+    /// Sustituye endpoints placeholder de versiones anteriores. Hoy: el hostname
+    /// del SMP por defecto (<c>play.tvlauncher.net</c>, que ya no resuelve) por la
+    /// IP real. Los hosts personalizados del usuario no se tocan.
+    /// </summary>
+    /// <returns><c>true</c> si hubo cambios que deban persistirse.</returns>
+    private bool MigrateLegacyEndpoints()
+    {
+        if (Config.DefaultSmpServer is null)
+            Config.DefaultSmpServer = new DefaultSmpServer();
+
+        if (string.Equals(Config.DefaultSmpServer.Ip?.Trim(), LegacySmpHost, StringComparison.OrdinalIgnoreCase))
+        {
+            Config.DefaultSmpServer.Ip = DefaultSmpServer.DefaultIp;
+            Log.Info($"[Config] Endpoint SMP migrado: {LegacySmpHost} -> {DefaultSmpServer.DefaultIp}");
+            return true;
+        }
+
+        return false;
     }
 
     public void SaveConfig()

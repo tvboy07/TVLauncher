@@ -15,10 +15,16 @@ namespace TVLauncher.Services;
 public class AuthService
 {
     private readonly ConfigService _configService;
-    private readonly string _accountsFilePath;
+    private readonly AccountsStore _accountsStore;
     private List<MinecraftAccount> _accounts;
     private MSession? _currentSession;
     private readonly MicrosoftAuthService _microsoftAuthService;
+
+    /// <summary>
+    /// Se desactiva si <c>accounts.json</c> no se pudo leer (clave ausente o
+    /// archivo corrupto). Guardar en ese estado borraría las cuentas del disco.
+    /// </summary>
+    private bool _accountsWritable = true;
 
     public List<MinecraftAccount> Accounts => _accounts;
     public MinecraftAccount? ActiveAccount => _accounts.FirstOrDefault(a => a.IsActive);
@@ -32,7 +38,7 @@ public class AuthService
     public AuthService(ConfigService configService)
     {
         _configService = configService;
-        _accountsFilePath = Path.Combine(_configService.Config.DataPath, "accounts.json");
+        _accountsStore = new AccountsStore(_configService.Config.DataPath);
         _accounts = new List<MinecraftAccount>();
         _microsoftAuthService = new MicrosoftAuthService(configService);
         
@@ -51,47 +57,55 @@ public class AuthService
     {
         try
         {
-            if (File.Exists(_accountsFilePath))
-            {
-                string json = File.ReadAllText(_accountsFilePath);
-                var loadedAccounts = JsonConvert.DeserializeObject<List<MinecraftAccount>>(json);
-                
-                if (loadedAccounts != null)
-                {
-                    _accounts = loadedAccounts;
-                }
-            }
+            _accounts = _accountsStore.Load();
+            _accountsWritable = true;
         }
         catch (Exception ex)
         {
+            // No marcar el almacén como escribible: guardar ahora sobrescribiría
+            // un archivo que no hemos podido descifrar (pérdida de cuentas).
+            _accountsWritable = false;
             Console.WriteLine($"Error al cargar cuentas: {ex.Message}");
+            Log.Warn($"[Accounts] No se pudieron cargar las cuentas; se bloquea el guardado. {ex.Message}");
             _accounts = new List<MinecraftAccount>();
         }
     }
 
     public void SaveAccounts()
     {
+        if (!_accountsWritable)
+        {
+            Log.Warn("[Accounts] Guardado omitido: las cuentas no se cargaron correctamente.");
+            return;
+        }
+
         try
         {
-            string json = JsonConvert.SerializeObject(_accounts, Formatting.Indented);
-            File.WriteAllText(_accountsFilePath, json);
+            _accountsStore.Save(_accounts);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error al guardar cuentas: {ex.Message}");
+            Log.Error($"[Accounts] Error al guardar las cuentas: {ex.Message}");
         }
     }
 
     public async Task SaveAccountsAsync()
     {
+        if (!_accountsWritable)
+        {
+            Log.Warn("[Accounts] Guardado omitido: las cuentas no se cargaron correctamente.");
+            return;
+        }
+
         try
         {
-            string json = JsonConvert.SerializeObject(_accounts, Formatting.Indented);
-            await File.WriteAllTextAsync(_accountsFilePath, json);
+            await Task.Run(() => _accountsStore.Save(_accounts));
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error al guardar cuentas: {ex.Message}");
+            Log.Error($"[Accounts] Error al guardar las cuentas: {ex.Message}");
         }
     }
 

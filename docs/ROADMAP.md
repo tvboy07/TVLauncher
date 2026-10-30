@@ -127,10 +127,12 @@ Fallo real simulado (JVM con flag inválido): el stack de `stderr` aparece en
    de arranque real (se prueba a mano).
 2. Descargas verificadas por SHA1 al descargar; los archivos ya presentes se
    reutilizan comprobando solo el tamaño (revalidar todo cuesta ~12 s por arranque).
-3. **`accounts.json` guarda `AccessToken` y `RefreshToken` en claro** en
-   `%LOCALAPPDATA%\TVLauncher`. Pendiente: cifrado con DPAPI (`ProtectedData`,
-   solo Windows) o AES con clave derivada de la máquina si se mantiene el soporte
-   multiplataforma. Decisión pendiente de definir el alcance de plataformas.
+3. ~~`accounts.json` guarda `AccessToken` y `RefreshToken` en claro~~
+   **Resuelto**: AES-256-GCM nativo (`AesGcm`) con sobre versionado, clave local de
+   32 bytes (`accounts.key`, `chmod 600` en Unix), escritura atómica y migración
+   automática desde el JSON plano. Funciona igual en Windows, Linux y macOS.
+   La clave vive junto al archivo: protege el archivo, no a un proceso que ya
+   ejecute código como el usuario.
 4. Logs de Minecraft acumulativos: se rotan a `.old.log` al superar 5 MB, por lo que
    una sesión anterior puede convivir con la actual en el mismo archivo.
 5. `README.md` desactualizado respecto al núcleo propio.
