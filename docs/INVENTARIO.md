@@ -16,8 +16,8 @@
 | Métrica | Valor |
 |---|---|
 | Stack | C# / .NET 8.0 · Avalonia UI 11.1.3 · MVVM (CommunityToolkit) · DI (Microsoft.Extensions) |
-| Código fuente propio | **54 archivos / 8.996 líneas** (sin `bin`, `obj` ni tests) |
-| Tests | **16 archivos / 1.641 líneas / 104 casos** (xUnit) |
+| Código fuente propio | **54 archivos / 9.043 líneas** (sin `bin`, `obj` ni tests) |
+| Tests | **17 archivos / 1.766 líneas / 114 casos** (xUnit) |
 | Dependencias NuGet | 20 (Avalonia, Silk.NET.OpenGL, SkiaSharp, Newtonsoft.Json, CmlLib.Core residual) |
 | Commits | 11 previos + este documento |
 | Build | **0 errores**, advertencias preexistentes (`MVVMTK0034`, `AVLN3001`, nullable) |
@@ -29,14 +29,14 @@
 
 | Carpeta | Archivos | Líneas | Contenido |
 |---|---|---|---|
-| `Services/` | 13 | 4.268 | Núcleo de lanzamiento, auth, cuentas cifradas, instancias, cosméticos, Modrinth, skins |
+| `Services/` | 13 | 4.315 | Núcleo de lanzamiento, auth, cuentas cifradas, instancias, cosméticos, Modrinth, skins |
 | `ViewModels/` | 9 | 1.600 | Lógica de presentación MVVM |
 | `Views/` | 16 (`8 .axaml` + `8 .cs`) | 1.540 | Ventanas y vistas Avalonia |
 | `Controls/` | 3 | 640 | Visor 3D OpenGL, banner |
 | `Helpers/` | 4 | 494 | Argumentos, reglas, enmascarado de secretos, modelo de skin |
 | `Models/` | 5 | 284 | Config, cuentas, instancias, metadata de versión, Java |
 | Raíz | 4 | 170 | `Program.cs`, `App.axaml(.cs)`, `ViewLocator.cs` |
-| `tests/TVLauncher.Tests/` | 16 | 1.641 | Suite xUnit |
+| `tests/TVLauncher.Tests/` | 17 | 1.766 | Suite xUnit |
 
 ### Historial
 
@@ -107,11 +107,12 @@ contienen la causa (`[stderr]` y/o `crash-reports`).
 | Capacidad | Estado | Detalle |
 |---|---|---|
 | OAuth 2.0 Microsoft (v2, `consumers`) | ✅ | `MicrosoftAuthService`, `login.microsoftonline.com/consumers/oauth2/v2.0/*` |
+| **Scopes** | ✅ | `openid profile offline_access XboxLive.signin` en authorize, token, device code y device token (`MicrosoftAuthService.Scope`) |
 | **Authorization Code + PKCE** | ✅ | `code_verifier` / `code_challenge` S256; **sin `client_secret`** (app pública) |
 | Redirect loopback | ✅ | `TcpListener` en `http://localhost:{puerto}/` (prefiere 1337, cae a puerto efímero), navegador del sistema. Requiere `http://localhost` registrado en Azure; Entra ID ignora el puerto pero **compara la ruta** (`/`) |
 | **Fallback a Device Code** | ✅ | `authorization_pending` / `slow_down` (incremento de intervalo) y expiración |
 | Cadena Xbox → Minecraft | ✅ | XBL → XSTS → `login_with_xbox` → perfil |
-| Client ID configurable | ✅ | `AppConfig.MicrosoftClientId` (vacío → app pública `38c4f9ed-…`, registrada como **TVLauncher**); sustituible sin recompilar |
+| Client ID configurable | ✅ | `AppConfig.MicrosoftClientId` (vacío → `c36a9fb6-…`, client público ya aprobado para la API de Minecraft); la app propia `38c4f9ed-…` se activa poniendo su GUID cuando Microsoft la apruebe |
 | Cuentas offline | ✅ | Nombre de usuario y UUID determinista |
 | Gestión de cuentas | ✅ | Alta, selección activa, borrado, persistencia en `accounts.json` |
 | Persistencia de sesión | ✅ | `accounts.json` cifrado con **AES-256-GCM** (`System.Security.Cryptography.AesGcm`): sobre `{version, alg, nonce, tag, data}` en Base64, nonce aleatorio de 12 bytes por escritura y tag de 16 |
@@ -130,11 +131,27 @@ funcione, la app debe tener además:
 |---|---|---|
 | Redirect URI (plataforma **Mobile and desktop applications**) | `http://localhost` | El código envía `http://localhost:{puerto}/`; Entra ID ignora el puerto en loopback pero **no** la ruta |
 | Allow public client flows | **Yes** | Device Code Flow (respaldo) y PKCE sin `client_secret` |
+| **Aprobación de la API de Minecraft** | Formulario `https://aka.ms/mce-reviewappid` | Sin ella, `login_with_xbox` devuelve **403 `Invalid app registration`** aunque OAuth, XBL y XSTS hayan ido bien |
 
 Si falta el redirect URI, Entra devuelve `invalid_request: The provided value for the input
 parameter 'redirect_uri' is not valid` en la página del navegador, el listener nunca recibe el
 callback y, tras 3 minutos de espera, se cae al Device Code. `http://127.0.0.1:puerto` **no**
 es equivalente a `http://localhost:puerto` para Entra ID.
+
+#### 403 `Invalid app registration` (diagnosticado el 30/10/2026)
+
+Los logs de dos ejecuciones reales separan con claridad la capa que falla:
+
+| Ejecución | Client ID | Token MS | XBL | XSTS | `login_with_xbox` |
+|---|---|---|---|---|---|
+| 23:33 | `c36a9fb6-…` | 200 | 200 | 200 | **200** ✅ |
+| 02:17 | `38c4f9ed-…` (app nueva) | 200 | 200 | 200 | **403** ❌ |
+
+Es decir: los scopes y PKCE son correctos (el token de Microsoft se emite y Xbox lo canjea).
+Mojang rechaza la **app**, no el token. Hasta que Microsoft apruebe la app nueva en
+`aka.ms/mce-reviewappid`, el launcher usa por defecto el client público `c36a9fb6-…`; la app
+propia se activa con `MicrosoftClientId` en `config.json` cuando esté aprobada. El error en la UI
+incluye ahora esa explicación y el enlace, en lugar del JSON crudo.
 
 ### Cifrado en disco de las cuentas
 
@@ -181,12 +198,12 @@ sin rastro del token en el archivo y segunda carga sin reescribir.
 | **SHA1 en descargas** | ✅ | `EnsureFileAsync(url, path, size, sha1, ct, fatal)` valida el `.part` **antes** de renombrarlo; si no coincide, borra el temporal y falla. Cubre `client.jar`, librerías, nativas, asset index, log config, metadata de versión y assets |
 | Política de reutilización | ⚠️ | Los archivos presentes se reutilizan **por tamaño** (revalidar todo cuesta ~12 s: 1.214 MB de assets + 536 MB de librerías + 187 MB de versiones) |
 | Rechazo de contenido corrupto | ✅ | Probado contra servidor HTTP local real: hash incorrecto → no se publica ni queda `.part` |
-| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **104 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
+| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **114 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
 | Aislamiento de tests | ✅ | `InternalsVisibleTo`, `tests/**` excluido del glob de compilación, `EnsureProfileJar` parametrizado, `ConfigService` con directorio inyectable, `ModrinthBrowserViewModel` con ctor interno sin carga remota |
-| Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado, 95 tras los arreglos de UI y Modrinth, 104 con cancelación y SHA-512) |
+| Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado, 95 tras los arreglos de UI y Modrinth, 104 con cancelación y SHA-512, 114 con scopes y PKCE) |
 | CI | ❌ | No hay pipeline |
 
-### Composición de la suite (104 casos = 99 métodos, 3 `[Theory]` con 8 entradas en total)
+### Composición de la suite (114 casos = 109 métodos, 3 `[Theory]` con 8 entradas en total)
 
 | Archivo | Casos | Qué garantiza |
 |---|---|---|
@@ -204,6 +221,7 @@ sin rastro del token en el archivo y segunda carga sin reescribir.
 | `ModrinthBrowserViewModelTests` | 4 | Circuito del ViewModel: el jar acaba en `{instancia}/mods`, sin hash también descarga, hash erróneo deja mensaje de error y ningún archivo, y `CancelDownloadCommand` detiene la transferencia sin dejar `.part` |
 | `GameVersionCatalogTests` | 5 | Parseo de `/v2/tag/game_version`: solo releases, orden descendente, sin duplicados, incluye versiones antiguas (1.8.9), JSON vacío o inválido |
 | `WindowLayoutTests` | 3 | Las ventanas de instancia tienen `ScrollViewer` y el botón de acción queda fuera del área desplazable |
+| `MicrosoftAuthRequestTests` | 10 | Scopes `openid profile offline_access XboxLive.signin` sin duplicados y URL-encoded, authorize con PKCE S256 y sin `client_secret`, challenge = Base64URL(SHA-256), formularios de token/device code, y explicación accionable del 403 `Invalid app registration` |
 
 ### Correcciones reales cerradas
 

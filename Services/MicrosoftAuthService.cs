@@ -25,12 +25,29 @@ namespace TVLauncher.Services;
 /// </summary>
 public class MicrosoftAuthService
 {
-    // Client ID v2 (Azure-AD GUID) de la app pública "TVLauncher" registrada por el
-    // proyecto. Los IDs v1 de 16 hex (p. ej. el antiguo de Mojang "00000000402b5328")
-    // son rechazados por el endpoint v2 con AADSTS70001 -> HTTP 400.
-    // Se puede sustituir sin recompilar con AppConfig.MicrosoftClientId.
-    private const string DefaultClientId = "38c4f9ed-0484-4a22-a192-9be8b172ab16";
-    private const string Scope = "XboxLive.signin offline_access";
+    // Client ID público aprobado para la API de Minecraft. Las apps de Azure
+    // nuevas (como la de TVLauncher, 38c4f9ed-...) reciben 403 "Invalid app
+    // registration" en /authentication/login_with_xbox hasta que Microsoft
+    // aprueba su acceso a api.minecraftservices.com:
+    // https://aka.ms/mce-reviewappid
+    // Para usar una app propia ya aprobada, define AppConfig.MicrosoftClientId.
+    private const string DefaultClientId = "c36a9fb6-4f2a-41ff-90bd-ae7cc92031eb";
+
+    /// <summary>
+    /// Scopes OAuth2 obligatorios: <c>XboxLive.signin</c> es imprescindible para
+    /// que Xbox Live acepte el token, <c>offline_access</c> devuelve refresh
+    /// token y <c>openid</c>/<c>profile</c> completan la petición OIDC estándar.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> DefaultScopes = new[]
+    {
+        "openid",
+        "profile",
+        "offline_access",
+        "XboxLive.signin"
+    };
+
+    /// <summary>Scopes tal y como viajan en la petición (separados por un espacio).</summary>
+    internal static string Scope => string.Join(' ', DefaultScopes);
 
     private const string AuthorizeUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
     private const string DeviceCodeUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
@@ -117,16 +134,7 @@ public class MicrosoftAuthService
         string codeVerifier = CreateRandomToken(64);
         string codeChallenge = CreateCodeChallenge(codeVerifier);
 
-        string authorizeUrl = AuthorizeUrl +
-            $"?client_id={Uri.EscapeDataString(ClientId)}" +
-            "&response_type=code" +
-            $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
-            "&response_mode=query" +
-            $"&scope={Uri.EscapeDataString(Scope)}" +
-            $"&state={Uri.EscapeDataString(state)}" +
-            $"&code_challenge={Uri.EscapeDataString(codeChallenge)}" +
-            "&code_challenge_method=S256" +
-            "&prompt=select_account";
+        string authorizeUrl = BuildAuthorizeUrl(ClientId, redirectUri, state, codeChallenge);
 
         Log.Info($"[MSAuth] Authorization Code Flow en {redirectUri}");
         StatusChanged?.Invoke(this, "Esperando la autorización en el navegador...");
@@ -239,15 +247,8 @@ public class MicrosoftAuthService
     private async Task<MicrosoftTokenResponse> ExchangeCodeAsync(string code, string codeVerifier,
         string redirectUri, CancellationToken cancellationToken)
     {
-        var content = new FormUrlEncodedContent(new[]
-        {
-            new KeyValuePair<string, string>("client_id", ClientId),
-            new KeyValuePair<string, string>("grant_type", "authorization_code"),
-            new KeyValuePair<string, string>("code", code),
-            new KeyValuePair<string, string>("redirect_uri", redirectUri),
-            new KeyValuePair<string, string>("code_verifier", codeVerifier),
-            new KeyValuePair<string, string>("scope", Scope)
-        });
+        var content = new FormUrlEncodedContent(
+            BuildAuthorizationCodeTokenForm(ClientId, code, redirectUri, codeVerifier));
 
         var response = await _http.PostAsync(TokenUrl, content, cancellationToken);
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -417,19 +418,77 @@ public class MicrosoftAuthService
     private static string CreateRandomToken(int byteLength)
         => Base64UrlEncode(RandomNumberGenerator.GetBytes(byteLength));
 
-    private static string CreateCodeChallenge(string verifier)
+    internal static string CreateCodeChallenge(string verifier)
         => Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
 
     private static string Base64UrlEncode(byte[] data)
         => Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
+    /// <summary>
+    /// URL de autorización OIDC: Authorization Code + PKCE (S256) para una app
+    /// pública. Nunca incluye <c>client_secret</c>.
+    /// </summary>
+    internal static string BuildAuthorizeUrl(string clientId, string redirectUri, string state,
+        string codeChallenge)
+        => AuthorizeUrl +
+           $"?client_id={Uri.EscapeDataString(clientId)}" +
+           "&response_type=code" +
+           $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+           "&response_mode=query" +
+           $"&scope={Uri.EscapeDataString(Scope)}" +
+           $"&state={Uri.EscapeDataString(state)}" +
+           $"&code_challenge={Uri.EscapeDataString(codeChallenge)}" +
+           "&code_challenge_method=S256" +
+           "&prompt=select_account";
+
+    internal static Dictionary<string, string> BuildAuthorizationCodeTokenForm(string clientId, string code,
+        string redirectUri, string codeVerifier)
+        => new()
+        {
+            ["client_id"] = clientId,
+            ["grant_type"] = "authorization_code",
+            ["code"] = code,
+            ["redirect_uri"] = redirectUri,
+            ["code_verifier"] = codeVerifier,
+            ["scope"] = Scope
+        };
+
+    internal static Dictionary<string, string> BuildDeviceCodeForm(string clientId)
+        => new()
+        {
+            ["client_id"] = clientId,
+            ["scope"] = Scope
+        };
+
+    internal static Dictionary<string, string> BuildDeviceCodeTokenForm(string clientId, string deviceCode)
+        => new()
+        {
+            ["grant_type"] = "urn:ietf:params:oauth:grant-type:device_code",
+            ["client_id"] = clientId,
+            ["device_code"] = deviceCode
+        };
+
+    /// <summary>
+    /// Traduce el error de <c>login_with_xbox</c> a algo accionable: un 403 con
+    /// "Invalid app registration" significa que Mojang aún no aprobó la app de
+    /// Azure, no que el token de Xbox sea inválido.
+    /// </summary>
+    internal static string DescribeMinecraftAuthError(int statusCode, string body, string clientId)
+    {
+        if (statusCode == 403 && body.Contains("Invalid app registration", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Error autenticándose con Minecraft (403): la app de Azure {clientId} no está " +
+                   "aprobada para la API de Minecraft. Solicita acceso en " +
+                   "https://aka.ms/mce-reviewappid o configura otro Client ID en Ajustes. " +
+                   $"Detalle: {body}";
+        }
+
+        return $"Error autenticándose con Minecraft ({statusCode}): {body}";
+    }
+
     private async Task<DeviceCodeResponse> RequestDeviceCodeAsync(CancellationToken cancellationToken)
     {
-        var content = new FormUrlEncodedContent(new[]
-        {
-            new KeyValuePair<string, string>("client_id", ClientId),
-            new KeyValuePair<string, string>("scope", Scope)
-        });
+        var content = new FormUrlEncodedContent(BuildDeviceCodeForm(ClientId));
 
         var response = await _http.PostAsync(DeviceCodeUrl, content, cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -453,12 +512,8 @@ public class MicrosoftAuthService
         {
             await Task.Delay(interval, cancellationToken);
 
-            var content = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-                new KeyValuePair<string, string>("client_id", ClientId),
-                new KeyValuePair<string, string>("device_code", deviceCode.DeviceCode)
-            });
+            var content = new FormUrlEncodedContent(
+                BuildDeviceCodeTokenForm(ClientId, deviceCode.DeviceCode));
 
             var response = await _http.PostAsync(TokenUrl, content, cancellationToken);
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -549,7 +604,7 @@ public class MicrosoftAuthService
         Log.Info($"[MSAuth] Minecraft -> HTTP {(int)response.StatusCode}: {SecretMasker.MaskAndTruncate(json)}");
 
         if (!response.IsSuccessStatusCode)
-            throw new Exception($"Error autenticándose con Minecraft ({(int)response.StatusCode}): {json}");
+            throw new Exception(DescribeMinecraftAuthError((int)response.StatusCode, json, ClientId));
 
         var result = JsonSerializer.Deserialize<MinecraftAuthResponse>(json);
         return result ?? throw new Exception("Error al autenticar con Minecraft Services: respuesta vacía");
