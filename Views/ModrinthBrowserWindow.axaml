@@ -184,10 +184,15 @@
             </Border>
         </Grid>
 
-        <!-- Status -->
-        <TextBlock Grid.Row="3" 
-                   Text="{Binding StatusMessage}" 
-                   Foreground="#AAAAAA"
-                   Margin="0,10,0,0"/>
+        <!-- Status + progreso de descarga -->
+        <StackPanel Grid.Row="3" Margin="0,10,0,0" Spacing="6">
+            <ProgressBar Minimum="0"
+                         Maximum="100"
+                         Value="{Binding DownloadProgress}"
+                         IsVisible="{Binding IsDownloading}"
+                         Height="6"/>
+            <TextBlock Text="{Binding StatusMessage}" 
+                       Foreground="#AAAAAA"/>
+        </StackPanel>
     </Grid>
 </Window>

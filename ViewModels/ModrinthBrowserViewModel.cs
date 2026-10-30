@@ -17,7 +17,6 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
 {
     private readonly ModrinthService _modrinthService;
     private readonly InstanceManager _instanceManager;
-    private readonly HttpClient _httpClient;
 
     [ObservableProperty]
     private string _searchQuery = "";
@@ -46,6 +45,12 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLoading = false;
 
+    [ObservableProperty]
+    private double _downloadProgress;
+
+    [ObservableProperty]
+    private bool _isDownloading;
+
     public ObservableCollection<string> GameVersions { get; } = new() { "1.20.1", "1.20.4", "1.19.4", "1.19.2", "1.18.2" };
     public ObservableCollection<string> ModLoaders { get; } = new() { "fabric", "forge", "neoforge", "quilt" };
 
@@ -53,10 +58,12 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
     {
         _modrinthService = modrinthService;
         _instanceManager = instanceManager;
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "TVLauncher/1.0.0");
-        
+
         _modrinthService.StatusChanged += (s, msg) => StatusMessage = msg;
+
+        // El desplegable arranca con una lista de respaldo y se sustituye por el
+        // catálogo real de Modrinth en cuanto llega la respuesta.
+        _ = LoadGameVersionsAsync();
     }
 
     partial void OnSelectedProjectChanged(ModrinthProject? value)
@@ -64,6 +71,39 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
         if (value != null)
         {
             _ = LoadProjectVersionsAsync(value.ProjectId);
+        }
+    }
+
+    partial void OnSelectedGameVersionChanged(string value) => ReloadVersionsIfProjectSelected();
+
+    partial void OnSelectedModLoaderChanged(string value) => ReloadVersionsIfProjectSelected();
+
+    private void ReloadVersionsIfProjectSelected()
+    {
+        if (SelectedProject != null)
+            _ = LoadProjectVersionsAsync(SelectedProject.ProjectId);
+    }
+
+    private async Task LoadGameVersionsAsync()
+    {
+        try
+        {
+            var versions = await _modrinthService.GetGameVersionsAsync();
+            if (versions.Count == 0)
+                return; // se mantiene la lista de respaldo
+
+            string previous = SelectedGameVersion;
+            GameVersions.Clear();
+            foreach (var version in versions)
+                GameVersions.Add(version);
+
+            SelectedGameVersion = GameVersions.Contains(previous)
+                ? previous
+                : GameVersions[0];
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[Modrinth] No se pudo cargar el catálogo de versiones: {ex.Message}");
         }
     }
 
@@ -138,6 +178,8 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
         try
         {
             IsLoading = true;
+            IsDownloading = true;
+            DownloadProgress = 0;
             StatusMessage = $"Descargando {SelectedProject.Title}...";
 
             // Buscar archivo primario
@@ -149,14 +191,22 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
             }
 
             string modsPath = Path.Combine(instance.GameDirectory, "mods");
-            Directory.CreateDirectory(modsPath);
-
             string filePath = Path.Combine(modsPath, primaryFile.Filename);
-            
-            // Descargar archivo
-            byte[] fileBytes = await _httpClient.GetByteArrayAsync(primaryFile.Url);
-            await File.WriteAllBytesAsync(filePath, fileBytes);
 
+            // Progress<T> se crea en el hilo de UI, así que los informes del
+            // descargador llegan marshalados al hilo correcto.
+            var progress = new Progress<double>(value =>
+            {
+                if (!IsDownloading)
+                    return;
+
+                DownloadProgress = value;
+                StatusMessage = $"Descargando {SelectedProject.Title}... {value:0}%";
+            });
+
+            await _modrinthService.DownloadFileAsync(primaryFile.Url, filePath, progress);
+
+            DownloadProgress = 100;
             StatusMessage = $"{SelectedProject.Title} descargado correctamente a {instance.Name}";
         }
         catch (Exception ex)
@@ -165,6 +215,7 @@ public partial class ModrinthBrowserViewModel : ViewModelBase
         }
         finally
         {
+            IsDownloading = false;
             IsLoading = false;
         }
     }

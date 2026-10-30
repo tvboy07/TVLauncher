@@ -1,7 +1,10 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TVLauncher.Services;
@@ -9,6 +12,7 @@ namespace TVLauncher.Services;
 public class ModrinthService
 {
     private readonly HttpClient _httpClient;
+    private readonly HttpClient _downloadClient;
     private readonly ConfigService _configService;
     private const string ApiBaseUrl = "https://api.modrinth.com/v2";
     
@@ -20,6 +24,12 @@ public class ModrinthService
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "TVLauncher/1.0.0");
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+        // Los archivos de Modrinth pesan cientos de MB (Pixelmon 1.20.1 = 392 MB):
+        // el timeout por defecto de HttpClient (100 s) aborta la descarga a mitad.
+        // El corte lo controla el CancellationToken del llamador.
+        _downloadClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        _downloadClient.DefaultRequestHeaders.Add("User-Agent", "TVLauncher/1.0.0");
     }
 
     public async Task<List<ModrinthProject>> SearchModsAsync(string query, string gameVersion = "", string modLoader = "", int limit = 20)
@@ -73,8 +83,7 @@ public class ModrinthService
         }
     }
 
-    public async Task<List<ModrinthVersion>> GetProjectVersionsAsync(string projectId, string gameVersion = "", string modLoader = "")
-    {
+    public async Task<List<ModrinthVersion>> GetProjectVersionsAsync(string projectId, string gameVersion = "", string modLoader = "")    {
         try
         {
             string url = $"{ApiBaseUrl}/project/{projectId}/version";
@@ -93,6 +102,138 @@ public class ModrinthService
         {
             Console.WriteLine($"Error al obtener versiones del proyecto: {ex.Message}");
             return new List<ModrinthVersion>();
+        }
+    }
+
+    /// <summary>Versiones de Minecraft publicadas, según Modrinth.</summary>
+    public async Task<List<string>> GetGameVersionsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string response = await _httpClient.GetStringAsync($"{ApiBaseUrl}/tag/game_version", cancellationToken);
+            return ParseGameVersions(response);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al obtener las versiones de Minecraft: {ex.Message}");
+            return new List<string>();
+        }
+    }
+
+    /// <summary>Convierte el payload de <c>/v2/tag/game_version</c> en la lista del desplegable.</summary>
+    internal static List<string> ParseGameVersions(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return new List<string>();
+
+        List<ModrinthGameVersionTag>? tags;
+        try
+        {
+            tags = JsonConvert.DeserializeObject<List<ModrinthGameVersionTag>>(json);
+        }
+        catch (JsonException)
+        {
+            return new List<string>();
+        }
+
+        if (tags == null)
+            return new List<string>();
+
+        return tags
+            .Where(t => !string.IsNullOrWhiteSpace(t.Version)
+                        && string.Equals(t.VersionType, "release", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(t => t.Date)
+            .Select(t => t.Version!)
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>
+    /// Descarga un archivo a disco por streaming, con progreso 0-100. Escribe en
+    /// un <c>.part</c> y solo lo publica cuando el tamaño recibido coincide con el
+    /// declarado, para no dejar un mod corrupto en <c>mods/</c>.
+    /// </summary>
+    public async Task DownloadFileAsync(string url, string destinationPath,
+        IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+
+        string? directory = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
+
+        string partPath = destinationPath + ".part";
+
+        try
+        {
+            using var response = await _downloadClient.GetAsync(
+                url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+            response.EnsureSuccessStatusCode();
+
+            long? totalBytes = response.Content.Headers.ContentLength;
+
+            await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var destination = new FileStream(
+                partPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+            {
+                byte[] buffer = new byte[81920];
+                long received = 0;
+                double lastReported = 0;
+
+                while (true)
+                {
+                    int read = await source.ReadAsync(buffer, cancellationToken);
+                    if (read == 0)
+                        break;
+
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    received += read;
+
+                    if (totalBytes is > 0)
+                    {
+                        double percent = received * 100d / totalBytes.Value;
+                        if (percent - lastReported >= 0.5 || received == totalBytes.Value)
+                        {
+                            lastReported = percent;
+                            progress?.Report(percent);
+                        }
+                    }
+                }
+
+                await destination.FlushAsync(cancellationToken);
+
+                if (totalBytes is > 0 && received != totalBytes.Value)
+                {
+                    throw new IOException(
+                        $"Descarga incompleta: se esperaban {totalBytes.Value} bytes y llegaron {received}.");
+                }
+            }
+
+            // El FileStream ya está cerrado: el rename funciona también en Windows.
+            File.Move(partPath, destinationPath, overwrite: true);
+            progress?.Report(100d);
+
+            Log.Info($"[Modrinth] Descargado {Path.GetFileName(destinationPath)} ({new FileInfo(destinationPath).Length} bytes)");
+        }
+        catch
+        {
+            TryDelete(partPath);
+            throw;
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (IOException)
+        {
+            // Limpieza best-effort del temporal.
         }
     }
 }
@@ -164,4 +305,21 @@ public class ModrinthFile
     
     [JsonProperty("primary")]
     public bool Primary { get; set; }
+
+    /// <summary>Tamaño del archivo en bytes (Modrinth lo publica en el listado de versiones).</summary>
+    [JsonProperty("size")]
+    public long Size { get; set; }
+}
+
+/// <summary>Entrada de <c>/v2/tag/game_version</c>.</summary>
+public class ModrinthGameVersionTag
+{
+    [JsonProperty("version")]
+    public string? Version { get; set; }
+
+    [JsonProperty("version_type")]
+    public string? VersionType { get; set; }
+
+    [JsonProperty("date")]
+    public DateTime Date { get; set; }
 }
