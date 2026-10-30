@@ -38,6 +38,22 @@ public class AppConfig
     // Skin previewer configuration
     public bool PreferMojangSessionServer { get; set; } = true;
     public bool UseCrafatarFallback { get; set; } = true;
+
+    // Persistencia de skins y cosméticos equipados
+    public string? EquippedSkinPath { get; set; }
+    public string? EquippedSkinUsername { get; set; }
+    public string? EquippedCapeId { get; set; }
+    public string? EquippedHatId { get; set; }
+    public List<SavedSkinEntry> SavedSkins { get; set; } = new();
+}
+
+public class SavedSkinEntry
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string Source { get; set; } = "Local";
+    public DateTime AddedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class DefaultSmpServer

@@ -168,8 +168,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _minecraftService.DownloadProgressChanged += OnDownloadProgressChanged;
         _minecraftService.GameLogReceived += OnGameLogReceived;
         _minecraftService.GameExited += OnGameExited;
-        Cosmetics.CloseRequested += (_, _) => ShowInstances();
-        Settings.CloseRequested += (_, _) => ShowInstances();
+        Cosmetics.CloseRequested += (_, _) => _ = ShowInstances();
+        Settings.CloseRequested += (_, _) => _ = ShowInstances();
 
         // Cargar datos
         LoadData();
@@ -202,6 +202,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>
     /// Sincroniza el gamertag, el estado y el avatar del header con la cuenta activa.
+    /// Si el armario tiene una skin equipada de otro usuario, el avatar la refleja.
     /// El avatar se pide en segundo plano: si falla, quedan las iniciales.
     /// </summary>
     private void RefreshProfile()
@@ -220,12 +221,35 @@ public partial class MainWindowViewModel : ViewModelBase
             AccountStatus = "Sin sesión";
         }
 
-        AvatarInitials = BuildInitials(ActiveAccountName);
+        // La skin equipada en el armario manda sobre la cuenta para el avatar.
+        string avatarName = !string.IsNullOrWhiteSpace(_configService.Config.EquippedSkinUsername)
+            ? _configService.Config.EquippedSkinUsername!
+            : activeAccount?.Username ?? ActiveAccountName;
+
+        AvatarInitials = BuildInitials(avatarName);
         Avatar = null;
         HasAvatar = false;
 
-        if (activeAccount != null)
-            _ = LoadAvatarAsync(activeAccount.Username);
+        if (!string.IsNullOrWhiteSpace(avatarName) && activeAccount != null)
+            _ = LoadAvatarAsync(avatarName, bustCache: true);
+    }
+
+    /// <summary>
+    /// Tras volver del armario: recarga skin/capa/sombrero desde la configuración
+    /// y refresca el avatar del header con la skin equipada.
+    /// </summary>
+    private async Task RefreshFromCosmeticsAsync()
+    {
+        try
+        {
+            await Cosmetics.RefreshEquippedStateAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[MainVM] No se pudo sincronizar el armario: {ex.Message}");
+        }
+
+        RefreshProfile();
     }
 
     /// <summary>Iniciales para el respaldo del avatar (máximo dos letras).</summary>
@@ -240,16 +264,23 @@ public partial class MainWindowViewModel : ViewModelBase
             : name.Trim()[..1].ToUpperInvariant();
     }
 
+    /// <summary>Nombre cuya cabeza se está solicitando; evita aplicar respuestas viejas.</summary>
+    private string _avatarRequestName = string.Empty;
+
     /// <summary>Descarga la cabeza de la skin (64 px) y la expone como avatar circular.</summary>
-    private async Task LoadAvatarAsync(string username)
+    private async Task LoadAvatarAsync(string username, bool bustCache = false)
     {
         try
         {
+            _avatarRequestName = username;
             string url = $"https://mc-heads.net/avatar/{Uri.EscapeDataString(username)}/64";
+            if (bustCache)
+                url += $"?t={DateTime.UtcNow.Ticks}";
+
             byte[] bytes = await AvatarHttpClient.GetByteArrayAsync(url);
 
-            // La cuenta pudo cambiar mientras descargábamos.
-            if (!string.Equals(username, ActiveAccountName, StringComparison.OrdinalIgnoreCase))
+            // La skin pudo cambiar mientras descargábamos.
+            if (!string.Equals(username, _avatarRequestName, StringComparison.OrdinalIgnoreCase))
                 return;
 
             using var stream = new MemoryStream(bytes);
@@ -394,7 +425,14 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ShowInstances() => NavigateTo(AppPage.Instances);
+    private async Task ShowInstances()
+    {
+        bool returningFromCosmetics = CurrentPage == AppPage.Cosmetics;
+        NavigateTo(AppPage.Instances);
+
+        if (returningFromCosmetics)
+            await RefreshFromCosmeticsAsync();
+    }
 
     [RelayCommand]
     private void ShowModrinth()
@@ -594,9 +632,9 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void CloseCosmetics()
+    private async Task CloseCosmetics()
     {
-        NavigateTo(AppPage.Instances);
+        await ShowInstances();
         Log.Info("[MainVM] Armario de cosméticos cerrado");
     }
 

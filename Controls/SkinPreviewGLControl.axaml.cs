@@ -19,7 +19,7 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
 {
     private const float Deg = MathF.PI / 180f;
 
-    private enum PartKind { Static, RightArm, LeftArm, RightLeg, LeftLeg, Cape }
+    private enum PartKind { Static, RightArm, LeftArm, RightLeg, LeftLeg, Cape, Hat }
     private readonly record struct ModelPart(int Start, int Count, Vector3 Pivot, PartKind Kind);
     private readonly List<ModelPart> _parts = new();
 
@@ -29,6 +29,7 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
     private uint _vbo;
     private uint _texture;
     private uint _capeTexture;
+    private uint _hatTexture;
 
     private int _mvpLocation = -1;
     private int _skinTextureLocation = -1;
@@ -46,6 +47,11 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
     private bool _capeDirty;
     private bool _capeLoaded;
     private bool _showCape = true;
+
+    private byte[]? _hatData;
+    private bool _hatDirty;
+    private bool _hatLoaded;
+    private bool _showHat;
 
     private bool _isSlim;
     private bool _geometryDirty;
@@ -96,6 +102,20 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
 
     public bool HasCape => _capeData != null;
     public bool IsCapeVisible => _showCape;
+
+    public void SetHatTexture(byte[]? hatData)
+    {
+        Log.Info($"[GL] SetHatTexture ({(hatData == null ? "null" : hatData.Length + " bytes")})");
+        _hatData = hatData;
+        _hatDirty = true;
+        RequestNextFrameRendering();
+    }
+
+    public void SetHatVisible(bool visible)
+    {
+        _showHat = visible;
+        RequestNextFrameRendering();
+    }
 
     public void SetAutoRotate(bool enabled) => _autoRotate = enabled;
 
@@ -401,6 +421,20 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
         AddBox(v, -5, -16, 0, 10, 16, 1, 0, 0);
         EndPart(s, new Vector3(0, 12, -2.3f), PartKind.Cape);
 
+        // Sombrero TVLauncher: ligeramente más grande que la cabeza, inclinado hacia delante
+        float hw = 5.2f;
+        float hd = 5.2f;
+        float hh = 2.6f;
+        float br = 6.2f;
+        float bd = 6.2f;
+        float bh = 0.9f;
+        s = v.Count / 5;
+        // Ala del sombrero
+        AddBox(v, -br / 2f, 8.6f, -bd / 2f + 0.8f, br, bh, bd, 0, 0);
+        // Copa
+        AddBox(v, -hw / 2f, 9.5f, -hd / 2f + 0.6f, hw, hh, hd, 0, 0);
+        EndPart(s, new Vector3(0, 16, 0), PartKind.Hat);
+
         return v.ToArray();
     }
 
@@ -574,6 +608,26 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
         catch (Exception ex) { Log.Error($"[GL] Error cargando capa: {ex}"); }
     }
 
+    private void LoadHatTexture()
+    {
+        if (_gl == null) return;
+        try
+        {
+            if (_hatTexture != 0) { _gl.DeleteTexture(_hatTexture); _hatTexture = 0; }
+            _hatLoaded = false;
+
+            if (_hatData == null) return;
+
+            using var decoded = SKBitmap.Decode(_hatData);
+            if (decoded == null) { Log.Error("[GL] No se pudo decodificar el PNG del sombrero"); return; }
+
+            _hatTexture = CreateTexture(decoded);
+            _hatLoaded = true;
+            Log.Info($"[GL] Sombrero cargado {decoded.Width}x{decoded.Height} (id={_hatTexture})");
+        }
+        catch (Exception ex) { Log.Error($"[GL] Error cargando sombrero: {ex}"); }
+    }
+
     // ---------- Render ----------
 
     private static Matrix4x4 About(Vector3 pivot, float angle)
@@ -593,6 +647,13 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
                 return Matrix4x4.CreateRotationY(MathF.PI)
                      * Matrix4x4.CreateRotationX(tilt)
                      * Matrix4x4.CreateTranslation(p.Pivot);
+            }
+            case PartKind.Hat:
+            {
+                float tilt = -12f * Deg;
+                float bob = _walking ? MathF.Sin(_walkPhase) * 1.2f : 0f;
+                return Matrix4x4.CreateRotationX(tilt)
+                     * Matrix4x4.CreateTranslation(p.Pivot + new Vector3(0, bob, 0.6f));
             }
             default: return Matrix4x4.Identity;
         }
@@ -645,6 +706,12 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
             _capeDirty = false;
         }
 
+        if (_hatDirty)
+        {
+            LoadHatTexture();
+            _hatDirty = false;
+        }
+
         if (_geometryDirty && _vbo != 0)
         {
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
@@ -670,6 +737,7 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
 
             float walk = _walking ? MathF.Sin(_walkPhase) * WalkAmplitude * Deg : 0f;
             bool capeReady = _showCape && _capeLoaded && _capeTexture != 0;
+            bool hatReady = _showHat && _hatLoaded && _hatTexture != 0;
 
             _gl.ActiveTexture(TextureUnit.Texture0);
             _gl.Uniform1(_skinTextureLocation, 0);
@@ -679,8 +747,9 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
             foreach (var part in _parts)
             {
                 if (part.Kind == PartKind.Cape && !capeReady) continue;
+                if (part.Kind == PartKind.Hat && !hatReady) continue;
 
-                uint tex = part.Kind == PartKind.Cape ? _capeTexture : _texture;
+                uint tex = part.Kind == PartKind.Cape ? _capeTexture : part.Kind == PartKind.Hat ? _hatTexture : _texture;
                 if (tex != boundTex)
                 {
                     _gl.BindTexture(TextureTarget.Texture2D, tex);
@@ -712,9 +781,11 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
             if (_program != 0) _gl.DeleteProgram(_program);
             if (_texture != 0) _gl.DeleteTexture(_texture);
             if (_capeTexture != 0) _gl.DeleteTexture(_capeTexture);
+            if (_hatTexture != 0) _gl.DeleteTexture(_hatTexture);
         }
-        _vao = 0; _vbo = 0; _program = 0; _texture = 0; _capeTexture = 0;
-        _textureLoaded = false; _programValid = false; _capeLoaded = false;
+        _vao = 0; _vbo = 0; _program = 0; _texture = 0; _capeTexture = 0; _hatTexture = 0;
+        _textureLoaded = false; _programValid = false; _capeLoaded = false; _hatLoaded = false;
         _capeDirty = _capeData != null;
+        _hatDirty = _hatData != null;
     }
 }

@@ -1,8 +1,12 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using SkiaSharp;
 using TVLauncher.Models;
 using TVLauncher.Services;
 
@@ -14,6 +18,7 @@ public partial class SkinsPreviewViewModel : ViewModelBase
     private readonly AuthService _authService;
     private readonly SkinService _skinService;
     private readonly ConfigService _configService;
+    private readonly string _skinsDir = string.Empty;
 
     [ObservableProperty]
     private string _username = "";
@@ -29,6 +34,9 @@ public partial class SkinsPreviewViewModel : ViewModelBase
 
     [ObservableProperty]
     private ObservableCollection<CosmeticItem> _wings = new();
+
+    [ObservableProperty]
+    private ObservableCollection<SavedSkinEntry> _savedSkins = new();
 
     [ObservableProperty]
     private ObservableCollection<string> _equippedCosmetics = new();
@@ -75,6 +83,7 @@ public partial class SkinsPreviewViewModel : ViewModelBase
 
     /// <summary>Textura de la capa actualmente aplicada (para restaurarla al desequipar).</summary>
     public byte[]? CapeTextureBytes { get; private set; }
+    public byte[]? HatTextureBytes { get; private set; }
 
     // ---------- Eventos hacia la vista (visor 3D) ----------
     public event EventHandler<byte[]?>? SkinLoaded;
@@ -93,6 +102,8 @@ public partial class SkinsPreviewViewModel : ViewModelBase
         _authService = authService;
         _skinService = skinService;
         _configService = configService;
+        _skinsDir = Path.Combine(_configService.GetCachePath(), "library");
+        Directory.CreateDirectory(_skinsDir);
         
         _skinService.StatusChanged += (s, msg) => StatusMessage = msg;
         
@@ -102,15 +113,17 @@ public partial class SkinsPreviewViewModel : ViewModelBase
         }
         
         LoadCosmetics();
+        LoadSavedSkins();
+        _ = RefreshEquippedStateAsync();
         Log.Info($"[Armario] ViewModel listo (usuario activo: '{Username}')");
     }
 
     private void LoadCosmetics()
     {
         AvailableCosmetics.Clear();
-        // Cosméticos de ejemplo (la tienda remota los sustituirá)
-        AvailableCosmetics.Add(new CosmeticItem { Id = "cape_1", Name = "Capa TVLauncher", Type = "cape", IsOwned = true });
-        AvailableCosmetics.Add(new CosmeticItem { Id = "hat_1", Name = "Sombrero Decorativo", Type = "hat", IsOwned = true });
+        // Cosméticos exclusivos TVLauncher
+        AvailableCosmetics.Add(new CosmeticItem { Id = "cape_tvlauncher", Name = "Capa TVLauncher", Type = "cape", IsOwned = true });
+        AvailableCosmetics.Add(new CosmeticItem { Id = "hat_tvlauncher", Name = "Sombrero TVLauncher", Type = "hat", IsOwned = true });
         AvailableCosmetics.Add(new CosmeticItem { Id = "wings_1", Name = "Alas", Type = "wings", IsOwned = false, IsPremium = true });
 
         Capes.Clear();
@@ -138,7 +151,27 @@ public partial class SkinsPreviewViewModel : ViewModelBase
         {
             EquippedCosmetics.Add(id);
         }
+
+        if (!string.IsNullOrWhiteSpace(_configService.Config.EquippedCapeId) && !EquippedCosmetics.Contains(_configService.Config.EquippedCapeId))
+            EquippedCosmetics.Add(_configService.Config.EquippedCapeId);
+        if (!string.IsNullOrWhiteSpace(_configService.Config.EquippedHatId) && !EquippedCosmetics.Contains(_configService.Config.EquippedHatId))
+            EquippedCosmetics.Add(_configService.Config.EquippedHatId);
     }
+
+    private void LoadSavedSkins()
+    {
+        SavedSkins.Clear();
+        if (_configService.Config.SavedSkins != null)
+        {
+            foreach (var s in _configService.Config.SavedSkins.OrderByDescending(x => x.AddedAt))
+            {
+                SavedSkins.Add(s);
+            }
+        }
+        OnPropertyChanged(nameof(HasSavedSkins));
+    }
+
+    public bool HasSavedSkins => SavedSkins.Count > 0;
 
     /// <summary>Carga la skin del usuario sólo si aún no hay una cargada (al abrir el armario).</summary>
     public async Task EnsureSkinLoadedAsync()
@@ -157,6 +190,18 @@ public partial class SkinsPreviewViewModel : ViewModelBase
 
     [RelayCommand]
     private async Task LoadSkin() => await LoadSkinAsync();
+
+    [RelayCommand]
+    private async Task SearchSkin()
+    {
+        if (string.IsNullOrWhiteSpace(Username))
+        {
+            StatusMessage = "Introduce un nombre de usuario para buscar";
+            return;
+        }
+        Username = Username.Trim();
+        await LoadSkinAsync();
+    }
 
     private async Task LoadSkinAsync()
     {
@@ -190,6 +235,9 @@ public partial class SkinsPreviewViewModel : ViewModelBase
 
                 // Capa original de Mojang: se aplica automáticamente al visor
                 ApplyCape(skin.CapeTexture, fromMojang: true);
+
+                // Persistir la skin equipada (copia local + config) para el shell
+                SaveEquippedSkinState(skin.SkinTexture, Username);
 
                 StatusMessage = skin.CapeTexture != null
                     ? $"Skin y capa cargadas correctamente (Fuente: {skin.Source})"
@@ -231,6 +279,78 @@ public partial class SkinsPreviewViewModel : ViewModelBase
         }
     }
 
+    private byte[] GenerateTvLauncherCape()
+    {
+        int size = 64;
+        var info = new SKImageInfo(size, 32, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var bmp = new SKBitmap(info);
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(SKColors.Transparent);
+
+        // Fondo degradado oscuro/violeta
+        using var paint = new SKPaint { IsAntialias = true };
+        var colors = new[] { SKColor.Parse("#0F1115"), SKColor.Parse("#6C5CE7") };
+        using var shader = SKShader.CreateLinearGradient(new SKPoint(0, 0), new SKPoint(size, 0), colors, null, SKShaderTileMode.Clamp);
+        paint.Shader = shader;
+        canvas.DrawRect(new SKRect(0, 0, size, 32), paint);
+
+        // Detalle diagonal sutil
+        paint.Shader = null;
+        paint.Color = SKColor.Parse("#7D6FF0");
+        paint.StrokeWidth = 2;
+        canvas.DrawLine(0, 10, 64, 6, paint);
+        canvas.DrawLine(0, 14, 64, 10, paint);
+
+        // Logo TVL
+        paint.Color = SKColors.White;
+        paint.TextSize = 8;
+        paint.Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold);
+        canvas.DrawText("TVL", 4, 24, paint);
+
+        using var img = SKImage.FromBitmap(bmp);
+        using var data = img.Encode(SKEncodedImageFormat.Png, 90);
+        return data.ToArray();
+    }
+
+    private byte[] GenerateTvLauncherHat()
+    {
+        int size = 64;
+        var info = new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var bmp = new SKBitmap(info);
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(SKColors.Transparent);
+
+        using var paint = new SKPaint { IsAntialias = true };
+        // Ala
+        paint.Color = SKColor.Parse("#0F1115");
+        canvas.DrawRoundRect(new SKRect(8, 34, 56, 40), 2, 2, paint);
+        // Borde violeta ala
+        paint.Style = SKPaintStyle.Stroke;
+        paint.Color = SKColor.Parse("#6C5CE7");
+        paint.StrokeWidth = 1.5f;
+        canvas.DrawRoundRect(new SKRect(8, 34, 56, 40), 2, 2, paint);
+        paint.Style = SKPaintStyle.Fill;
+        // Copa
+        paint.Color = SKColor.Parse("#151820");
+        canvas.DrawRoundRect(new SKRect(18, 18, 46, 36), 4, 4, paint);
+        // Banda violeta
+        paint.Color = SKColor.Parse("#6C5CE7");
+        canvas.DrawRect(new SKRect(18, 28, 46, 32), paint);
+        // Brillo
+        paint.Color = SKColor.Parse("#8B7BFF");
+        canvas.DrawCircle(24, 24, 2, paint);
+        // Detalle superior
+        paint.Color = SKColor.Parse("#0F1115");
+        canvas.DrawRoundRect(new SKRect(20, 16, 44, 20), 3, 3, paint);
+        paint.Style = SKPaintStyle.Stroke;
+        paint.Color = SKColor.Parse("#6C5CE7");
+        canvas.DrawRoundRect(new SKRect(20, 16, 44, 20), 3, 3, paint);
+
+        using var img = SKImage.FromBitmap(bmp);
+        using var data = img.Encode(SKEncodedImageFormat.Png, 90);
+        return data.ToArray();
+    }
+
     [RelayCommand]
     private void ToggleCape() => IsCapeVisible = !IsCapeVisible;
 
@@ -242,6 +362,115 @@ public partial class SkinsPreviewViewModel : ViewModelBase
 
     [RelayCommand]
     private void ToggleSlim() => IsSlim = !IsSlim;
+
+    [RelayCommand]
+    public async Task SaveToLibrary()
+    {
+        if (CurrentSkin?.SkinTexture == null || string.IsNullOrWhiteSpace(Username))
+        {
+            StatusMessage = "Carga una skin antes de guardarla en tu biblioteca";
+            return;
+        }
+
+        try
+        {
+            Username = Username.Trim();
+            string fileName = $"{Username.ToLowerInvariant()}_{DateTime.UtcNow:yyyyMMddHHmmss}.png";
+            string fullPath = Path.Combine(_skinsDir, fileName);
+            await File.WriteAllBytesAsync(fullPath, CurrentSkin.SkinTexture);
+
+            var entry = new SavedSkinEntry
+            {
+                Name = Username,
+                FileName = fileName,
+                Source = CurrentSkin.Source ?? "Mojang",
+                AddedAt = DateTime.UtcNow
+            };
+
+            if (_configService.Config.SavedSkins == null)
+                _configService.Config.SavedSkins = new List<SavedSkinEntry>();
+            _configService.Config.SavedSkins.Add(entry);
+            _configService.SaveConfig();
+
+            SavedSkins.Insert(0, entry);
+            OnPropertyChanged(nameof(HasSavedSkins));
+            StatusMessage = $"«{Username}» guardado en Mis Skins";
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[Armario] Error guardando en biblioteca: {ex}");
+            StatusMessage = $"Error al guardar: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task EquipSavedSkin(SavedSkinEntry? entry)
+    {
+        if (entry == null) return;
+        string path = Path.Combine(_skinsDir, entry.FileName);
+        if (!File.Exists(path))
+        {
+            StatusMessage = "El archivo de la skin guardada no existe";
+            return;
+        }
+
+        try
+        {
+            byte[] data = await File.ReadAllBytesAsync(path);
+            CurrentSkin = new SkinData { SkinTexture = data, Source = entry.Source, Model = "classic" };
+            SkinLoaded?.Invoke(this, data);
+            HasSkin = true;
+            Username = entry.Name;
+            IsSlim = false;
+            SkinSource = $"Biblioteca · {entry.Name}";
+            ApplyCape(null);
+            SaveEquippedSkinState(data, entry.Name);
+            StatusMessage = $"Skin «{entry.Name}» equipada desde Mis Skins";
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[Armario] Error equipando skin guardada: {ex}");
+            StatusMessage = $"Error al equipar: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public void DeleteSavedSkin(SavedSkinEntry? entry)
+    {
+        if (entry == null)
+            return;
+
+        try
+        {
+            string path = Path.Combine(_skinsDir, entry.FileName);
+            if (File.Exists(path))
+                File.Delete(path);
+
+            _configService.Config.SavedSkins?.RemoveAll(s => s.Id == entry.Id);
+
+            // Si esa skin era la equipada, se limpia también ese estado.
+            if (!string.IsNullOrWhiteSpace(_configService.Config.EquippedSkinPath) &&
+                string.Equals(Path.GetFullPath(_configService.Config.EquippedSkinPath),
+                              Path.GetFullPath(path),
+                              StringComparison.OrdinalIgnoreCase))
+            {
+                _configService.Config.EquippedSkinPath = null;
+                _configService.Config.EquippedSkinUsername = null;
+            }
+
+            _configService.SaveConfig();
+
+            SavedSkins.Remove(entry);
+            OnPropertyChanged(nameof(HasSavedSkins));
+            StatusMessage = $"«{entry.Name}» eliminada de Mis Skins";
+            Log.Info($"[Armario] Skin eliminada de la biblioteca: {entry.FileName}");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[Armario] Error eliminando skin guardada: {ex}");
+            StatusMessage = $"No se pudo eliminar «{entry.Name}»: {ex.Message}";
+        }
+    }
 
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke(this, EventArgs.Empty);
@@ -267,6 +496,15 @@ public partial class SkinsPreviewViewModel : ViewModelBase
         switch (cosmetic.Type.ToLowerInvariant())
         {
             case "cape":
+                if (cosmetic.Id == "cape_tvlauncher")
+                {
+                    var capeBytes = GenerateTvLauncherCape();
+                    ApplyCape(capeBytes);
+                    _configService.Config.EquippedCapeId = "cape_tvlauncher";
+                    _configService.SaveConfig();
+                    StatusMessage = $"{cosmetic.Name} equipada correctamente";
+                    break;
+                }
                 if (!string.IsNullOrWhiteSpace(cosmetic.TextureUrl))
                 {
                     StatusMessage = $"Descargando {cosmetic.Name}...";
@@ -274,6 +512,8 @@ public partial class SkinsPreviewViewModel : ViewModelBase
                     if (capeBytes != null)
                     {
                         ApplyCape(capeBytes);
+                        _configService.Config.EquippedCapeId = cosmetic.Id;
+                        _configService.SaveConfig();
                         StatusMessage = $"{cosmetic.Name} equipada correctamente";
                     }
                     else
@@ -285,6 +525,8 @@ public partial class SkinsPreviewViewModel : ViewModelBase
                 {
                     // Sin textura propia: se usa la capa de Mojang del jugador
                     IsCapeVisible = true;
+                    _configService.Config.EquippedCapeId = cosmetic.Id;
+                    _configService.SaveConfig();
                     StatusMessage = HasCape
                         ? $"{cosmetic.Name} activa (capa del jugador)"
                         : $"{cosmetic.Name} equipada. Carga tu skin de Mojang para ver tu capa.";
@@ -292,10 +534,20 @@ public partial class SkinsPreviewViewModel : ViewModelBase
                 break;
 
             case "hat":
+                if (cosmetic.Id == "hat_tvlauncher")
+                {
+                    HatTextureBytes = GenerateTvLauncherHat();
+                }
+                else if (!string.IsNullOrWhiteSpace(cosmetic.TextureUrl))
+                {
+                    HatTextureBytes = await _skinService.DownloadTextureAsync(cosmetic.TextureUrl);
+                }
                 IsHatEquipped = true;
                 HatEquipped?.Invoke(this, cosmetic);
+                _configService.Config.EquippedHatId = cosmetic.Id;
+                _configService.SaveConfig();
                 Log.Info($"[Armario] Sombrero equipado: {cosmetic.Id}");
-                StatusMessage = $"{cosmetic.Name} equipado (se verá en el juego)";
+                StatusMessage = $"{cosmetic.Name} equipado";
                 break;
 
             case "wings":
@@ -321,12 +573,23 @@ public partial class SkinsPreviewViewModel : ViewModelBase
             case "cape":
                 // Volver a la capa original de Mojang (si existe)
                 ApplyCape(CurrentSkin?.CapeTexture);
+                if (_configService.Config.EquippedCapeId == cosmetic.Id)
+                {
+                    _configService.Config.EquippedCapeId = null;
+                    _configService.SaveConfig();
+                }
                 StatusMessage = $"{cosmetic.Name} desequipada";
                 break;
 
             case "hat":
                 IsHatEquipped = false;
+                HatTextureBytes = null;
                 HatEquipped?.Invoke(this, null);
+                if (_configService.Config.EquippedHatId == cosmetic.Id)
+                {
+                    _configService.Config.EquippedHatId = null;
+                    _configService.SaveConfig();
+                }
                 StatusMessage = $"{cosmetic.Name} desequipado";
                 break;
 
@@ -335,6 +598,91 @@ public partial class SkinsPreviewViewModel : ViewModelBase
                 WingsEquipped?.Invoke(this, null);
                 StatusMessage = $"{cosmetic.Name} desequipadas";
                 break;
+        }
+    }
+
+    private void SaveEquippedSkinState(byte[] skinData, string username)
+    {
+        try
+        {
+            // Un único archivo: se sobrescribe en cada equipado y no acumula copias.
+            string fileName = "equipped.png";
+            string path = Path.Combine(_skinsDir, fileName);
+            File.WriteAllBytes(path, skinData);
+            _configService.Config.EquippedSkinPath = path;
+            _configService.Config.EquippedSkinUsername = username;
+            _configService.SaveConfig();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[Armario] No se pudo persistir la skin equipada: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Recarga desde <see cref="AppConfig"/> la skin, la capa y el sombrero equipados.
+    /// Se llama al crear el armario y cada vez que el shell vuelve a primer plano,
+    /// de modo que el header y el visor reflejan los cambios sin reiniciar la app.
+    /// </summary>
+    public async Task RefreshEquippedStateAsync()
+    {
+        try
+        {
+            LoadSavedSkins();
+
+            // 1) Skin equipada (copia local persistida)
+            string? skinPath = _configService.Config.EquippedSkinPath;
+            if (!string.IsNullOrWhiteSpace(skinPath) && File.Exists(skinPath))
+            {
+                byte[] data = await File.ReadAllBytesAsync(skinPath);
+                if (data.Length > 0)
+                {
+                    bool sameTexture = CurrentSkin?.SkinTexture is { Length: > 0 } current
+                                       && current.AsSpan().SequenceEqual(data);
+
+                    Username = _configService.Config.EquippedSkinUsername ?? Username;
+                    IsSlim = false;
+                    HasSkin = true;
+
+                    if (!sameTexture)
+                    {
+                        CurrentSkin = new SkinData { SkinTexture = data, Source = "Guardado", Model = "classic" };
+                        SkinSource = $"Guardado · {Username}";
+                    }
+
+                    SkinLoaded?.Invoke(this, data);
+                }
+            }
+
+            // 2) Capa equipada
+            if (_configService.Config.EquippedCapeId == "cape_tvlauncher")
+            {
+                ApplyCape(GenerateTvLauncherCape());
+            }
+            else if (string.IsNullOrWhiteSpace(_configService.Config.EquippedCapeId)
+                     && CurrentSkin?.CapeTexture != null)
+            {
+                // Sin capa cosmética: se conserva la capa de Mojang del jugador.
+                ApplyCape(CurrentSkin.CapeTexture);
+            }
+
+            // 3) Sombrero equipado
+            if (_configService.Config.EquippedHatId == "hat_tvlauncher")
+            {
+                HatTextureBytes = GenerateTvLauncherHat();
+                IsHatEquipped = true;
+                HatEquipped?.Invoke(this, Hats.FirstOrDefault(h => h.Id == "hat_tvlauncher"));
+            }
+            else if (string.IsNullOrWhiteSpace(_configService.Config.EquippedHatId))
+            {
+                HatTextureBytes = null;
+                IsHatEquipped = false;
+                HatEquipped?.Invoke(this, null);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[Armario] No se pudo refrescar el estado equipado: {ex.Message}");
         }
     }
 

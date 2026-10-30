@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -11,6 +12,14 @@ public class SkinService
 {
     private readonly HttpClient _httpClient;
     private readonly string _skinCachePath;
+
+    // Caché en memoria de UUIDs: evita golpear la API de Mojang en búsquedas
+    // repetidas (incluidos los "no encontrado", con TTL corto).
+    private readonly record struct UuidCacheEntry(string? Uuid, DateTime ExpiresUtc);
+    private static readonly ConcurrentDictionary<string, UuidCacheEntry> UuidCache =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan UuidPositiveTtl = TimeSpan.FromHours(24);
+    private static readonly TimeSpan UuidNegativeTtl = TimeSpan.FromMinutes(5);
     
     // Mojang API endpoints
     private const string MojangProfileApi = "https://api.mojang.com/users/profiles/minecraft";
@@ -21,6 +30,9 @@ public class SkinService
     private const string CrafatarCapeApi = "https://crafatar.com/capes";
     
     public event EventHandler<string>? StatusChanged;
+
+    /// <summary>Vacía el caché en memoria de UUIDs (solo para tests).</summary>
+    internal static void ClearUuidCache() => UuidCache.Clear();
 
     public SkinService(ConfigService configService)
     {
@@ -84,34 +96,50 @@ public class SkinService
 
     private async Task<string?> GetUuidFromUsernameAsync(string username)
     {
+        string key = username.Trim().ToLowerInvariant();
+
+        // 1) Caché en memoria (lo más rápido: sin disco ni red)
+        if (UuidCache.TryGetValue(key, out var memoryEntry) && memoryEntry.ExpiresUtc > DateTime.UtcNow)
+        {
+            Log.Info($"[Skin] UUID desde caché en memoria: {username} -> {memoryEntry.Uuid ?? "no encontrado"}");
+            return memoryEntry.Uuid;
+        }
+
         try
         {
-            // Verificar cache
-            string cacheFile = Path.Combine(_skinCachePath, $"{username.ToLower()}_uuid.txt");
-            if (File.Exists(cacheFile))
+            // 2) Caché en disco
+            string cacheFile = Path.Combine(_skinCachePath, $"{key}_uuid.txt");
+            if (File.Exists(cacheFile) &&
+                (DateTime.UtcNow - File.GetLastWriteTimeUtc(cacheFile)).TotalHours < 24)
             {
-                string cachedUuid = await File.ReadAllTextAsync(cacheFile);
-                if (!string.IsNullOrEmpty(cachedUuid) && (DateTime.Now - File.GetLastWriteTime(cacheFile)).TotalHours < 24)
+                string cachedUuid = (await File.ReadAllTextAsync(cacheFile)).Trim();
+                if (!string.IsNullOrEmpty(cachedUuid))
                 {
-                    return cachedUuid.Trim();
+                    UuidCache[key] = new UuidCacheEntry(cachedUuid, DateTime.UtcNow + UuidPositiveTtl);
+                    return cachedUuid;
                 }
             }
             
-            // Consultar Mojang API
+            // 3) Consultar Mojang API
             string response = await _httpClient.GetStringAsync($"{MojangProfileApi}/{username}");
             var profile = JsonConvert.DeserializeObject<MojangProfile>(response);
             
             if (profile != null && !string.IsNullOrEmpty(profile.Id))
             {
-                // Guardar en cache
+                // Guardar en caché de disco y memoria
                 await File.WriteAllTextAsync(cacheFile, profile.Id);
+                UuidCache[key] = new UuidCacheEntry(profile.Id, DateTime.UtcNow + UuidPositiveTtl);
                 return profile.Id;
             }
-            
+
+            // 204/JSON vacío: el usuario no existe. Cachear el fallo un rato.
+            UuidCache[key] = new UuidCacheEntry(null, DateTime.UtcNow + UuidNegativeTtl);
             return null;
         }
         catch (Exception ex)
         {
+            // Un fallo de red no debe martillear la API: se recuerda brevemente.
+            UuidCache[key] = new UuidCacheEntry(null, DateTime.UtcNow + UuidNegativeTtl);
             Console.WriteLine($"Error al obtener UUID: {ex.Message}");
             return null;
         }

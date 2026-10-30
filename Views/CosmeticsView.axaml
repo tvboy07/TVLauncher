@@ -62,7 +62,7 @@
                     Padding="0"
                     ClipToBounds="True"
                     Margin="0,0,14,0">
-                <Grid RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto,*">
 
                     <Border Grid.Row="0"
                             Background="{StaticResource SurfaceAltBrush}"
@@ -71,14 +71,24 @@
                             Padding="14,10">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBox Text="{Binding Username}"
-                                     Watermark="Nickname"
-                                     Width="170"
+                                     Watermark="Buscar por nombre de usuario"
+                                     Width="200"
                                      FontSize="12"/>
-                            <Button Content="Cargar skin"
+                            <Button Content="Buscar"
                                     Classes="primary"
-                                    Command="{Binding LoadSkinCommand}"
+                                    Command="{Binding SearchSkinCommand}"
                                     FontSize="12"
                                     Padding="14,6"/>
+                            <Button Content="Equipar"
+                                    Classes="ghost"
+                                    Command="{Binding LoadSkinCommand}"
+                                    FontSize="12"
+                                    Padding="12,6"/>
+                            <Button Content="Guardar en mi biblioteca"
+                                    Classes="ghost"
+                                    Command="{Binding SaveToLibraryCommand}"
+                                    FontSize="12"
+                                    Padding="12,6"/>
                             <ProgressBar IsVisible="{Binding IsLoading}"
                                          IsIndeterminate="True"
                                          Width="70"
@@ -86,13 +96,55 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Row="1" Background="{StaticResource AppBackgroundBrush}" ClipToBounds="True">
+                    <Border Grid.Row="1"
+                            Background="{StaticResource SurfaceAltBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="14,10">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Mis skins" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                <TextBlock Text="(sin skins guardadas)" Classes="caption" FontSize="10" VerticalAlignment="Center" IsVisible="{Binding !HasSavedSkins}"/>
+                            </StackPanel>
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding SavedSkins}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="8"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <Button Content="{Binding Name}"
+                                                        Classes="ghost"
+                                                        Command="{Binding $parent[UserControl].((vm:SkinsPreviewViewModel)DataContext).EquipSavedSkinCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        FontSize="11"
+                                                        Padding="10,4"/>
+                                                <Button Content="Quitar"
+                                                        Classes="ghost"
+                                                        Foreground="{StaticResource DangerBrush}"
+                                                        Command="{Binding $parent[UserControl].((vm:SkinsPreviewViewModel)DataContext).DeleteSavedSkinCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        AutomationProperties.Name="Quitar skin de Mis Skins"
+                                                        FontSize="11"
+                                                        Padding="8,4"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="2" Background="{StaticResource AppBackgroundBrush}" ClipToBounds="True">
                         <Grid>
                             <controls:SkinPreviewGLControl x:Name="SkinPreviewControl"
                                                            HorizontalAlignment="Stretch"
                                                            VerticalAlignment="Stretch"
                                                            MinHeight="160"/>
-                            <TextBlock Text="Carga una skin para previsualizarla en 3D"
+                            <TextBlock Text="Busca un usuario de Minecraft para cargar y previsualizar la skin en 3D"
                                        IsVisible="{Binding !HasSkin}"
                                        Classes="caption"
                                        HorizontalAlignment="Center"

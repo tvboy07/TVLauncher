@@ -56,6 +56,8 @@ public partial class CosmeticsView : UserControl
 
         _glControl?.SetCapeTexture(_viewModel.CapeTextureBytes);
         _glControl?.SetCapeVisible(_viewModel.IsCapeVisible);
+        _glControl?.SetHatTexture(_viewModel.HatTextureBytes);
+        _glControl?.SetHatVisible(_viewModel.IsHatEquipped);
         _glControl?.SetSlim(_viewModel.IsSlim);
         _glControl?.SetWalking(_viewModel.WalkAnimation);
         _glControl?.SetAutoRotate(_viewModel.AutoRotate);
@@ -116,10 +118,13 @@ public partial class CosmeticsView : UserControl
 
     private void OnAutoRotateChanged(object? sender, bool enabled) => _glControl?.SetAutoRotate(enabled);
 
-    // Gorro y alas aún no se renderizan en el visor local: se dejan preparados
-    // para que el equipo de arte/motor los conecte sin tocar la UI.
     private void OnHatEquipped(object? sender, CosmeticItem? cosmetic)
-        => Log.Info($"[Armario] Evento HatEquipped: {(cosmetic?.Id ?? "ninguno")}");
+    {
+        if (_glControl == null) return;
+        _glControl.SetHatTexture(_viewModel?.HatTextureBytes);
+        _glControl.SetHatVisible(_viewModel?.IsHatEquipped ?? false);
+        Log.Info($"[Armario] Evento HatEquipped: {(cosmetic?.Id ?? "ninguno")}");
+    }
 
     private void OnWingsEquipped(object? sender, CosmeticItem? cosmetic)
         => Log.Info($"[Armario] Evento WingsEquipped: {(cosmetic?.Id ?? "ninguno")}");
