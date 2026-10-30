@@ -7,6 +7,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -242,7 +243,7 @@ public class GameFilesService
 
         StatusChanged?.Invoke(this,
             $"Descargando instalador de {(neoForge ? "NeoForge" : "Forge")} {mavenVersion}...");
-        await EnsureFileAsync(installerUrl, installerPath, 0, cancellationToken, fatal: true);
+        await EnsureFileAsync(installerUrl, installerPath, 0, null, cancellationToken, fatal: true);
 
         var (embeddedVersionJson, versionId) =
             ReadForgeInstallerProfile(installerPath, minecraftVersion, mavenVersion, neoForge);
@@ -616,7 +617,7 @@ public class GameFilesService
 
         string clientJarPath = Path.Combine(versionDirectory, $"{jarSourceId}.jar");
         StatusChanged?.Invoke(this, "Comprobando client.jar...");
-        await EnsureFileAsync(client.Url, clientJarPath, client.Size, cancellationToken, fatal: true);
+        await EnsureFileAsync(client.Url, clientJarPath, client.Size, client.Sha1, cancellationToken, fatal: true);
 
         // Forge/NeoForge (1.17+) referencian ${version_name}.jar dentro de -DignoreList:
         // ModLauncher excluye del module layer el jar del juego solo si su nombre de
@@ -624,7 +625,7 @@ public class GameFilesService
         // convierte en el módulo automático _1._20._1, que choca con el módulo minecraft
         // creado por FML y aborta con ResolutionException. Se replica el layout oficial:
         // una copia del client.jar en versions/{perfil}/{perfil}.jar y se lanza con ella.
-        clientJarPath = EnsureProfileJar(version, clientJarPath, jarSourceId);
+        clientJarPath = EnsureProfileJar(version, clientJarPath, jarSourceId, VersionsDirectory);
 
         // ---------- librerías ----------
         var features = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -658,7 +659,7 @@ public class GameFilesService
         {
             StatusChanged?.Invoke(this, $"Descargando índice de assets ({assetIndexName})...");
             await EnsureFileAsync(version.AssetIndex.Url, assetIndexPath, version.AssetIndex.Size,
-                cancellationToken, fatal: true);
+                version.AssetIndex.Sha1, cancellationToken, fatal: true);
 
             if (File.Exists(assetIndexPath))
                 await DownloadAssetsAsync(assetIndexPath, cancellationToken);
@@ -675,7 +676,7 @@ public class GameFilesService
             string id = string.IsNullOrWhiteSpace(loggingFile.Id) ? "client" : loggingFile.Id!;
             loggingConfigPath = Path.Combine(AssetsDirectory, "log_configs", id);
             await EnsureFileAsync(loggingFile.Url, loggingConfigPath, loggingFile.Size,
-                cancellationToken, fatal: false);
+                loggingFile.Sha1, cancellationToken, fatal: false);
         }
 
         // ---------- directorio de nativas ----------
@@ -709,12 +710,13 @@ public class GameFilesService
     /// copia el client.jar heredado a <c>versions/{id}/{id}.jar</c>. Si el perfil ya
     /// trae su propio jar (OptiFine u otros parches) se respeta tal cual.
     /// </summary>
-    private string EnsureProfileJar(MinecraftVersionJson version, string sourceJarPath, string jarSourceId)
+    internal static string EnsureProfileJar(MinecraftVersionJson version, string sourceJarPath,
+        string jarSourceId, string versionsDirectory)
     {
         if (version.Id.Equals(jarSourceId, StringComparison.OrdinalIgnoreCase) || !RequiresProfileJar(version))
             return sourceJarPath;
 
-        string profileDirectory = Path.Combine(VersionsDirectory, version.Id);
+        string profileDirectory = Path.Combine(versionsDirectory, version.Id);
         Directory.CreateDirectory(profileDirectory);
         string profileJarPath = Path.Combine(profileDirectory, $"{version.Id}.jar");
 
@@ -851,7 +853,7 @@ public class GameFilesService
         {
             Log.Info($"[GameFiles] Descargando metadata de {entry.Id}");
             Directory.CreateDirectory(directory);
-            await EnsureFileAsync(entry.Url, path, 0, cancellationToken, fatal: true);
+            await EnsureFileAsync(entry.Url, path, 0, entry.Sha1, cancellationToken, fatal: true);
         }
 
         var version = JsonConvert.DeserializeObject<MinecraftVersionJson>(await File.ReadAllTextAsync(path, cancellationToken))
@@ -864,7 +866,7 @@ public class GameFilesService
         return version;
     }
 
-    private static MinecraftVersionJson MergeVersions(MinecraftVersionJson parent, MinecraftVersionJson child)
+    internal static MinecraftVersionJson MergeVersions(MinecraftVersionJson parent, MinecraftVersionJson child)
     {
         // Los perfiles de modloader pueden reemplazar una librería del padre por otra
         // versión (p. ej. Forge 1.16.5 sube log4j-core 2.8.1 -> 2.15.0). Si ambas versiones
@@ -922,7 +924,7 @@ public class GameFilesService
     /// Permite que el perfil hijo sustituya la versión que trae el metadata heredado sin
     /// dejar dos copias de la misma librería en el classpath.
     /// </summary>
-    private static string LibraryKey(LibraryInfo library)
+    internal static string LibraryKey(LibraryInfo library)
     {
         string[] parts = (library.Name ?? string.Empty).Split(':');
         if (parts.Length < 3)
@@ -971,7 +973,7 @@ public class GameFilesService
                 url = ResolveLibraryBaseUrl(library, relativePath).TrimEnd('/') + "/" + relativePath;
             }
 
-            await EnsureFileAsync(url, targetPath, artifact?.Size ?? 0, cancellationToken, fatal: true);
+            await EnsureFileAsync(url, targetPath, artifact?.Size ?? 0, artifact?.Sha1, cancellationToken, fatal: true);
         }
 
         // Nativas con clasificador (formato antiguo, hasta 1.18)
@@ -985,7 +987,7 @@ public class GameFilesService
             library.Downloads.Classifiers.TryGetValue(classifier, out var native))
         {
             string nativePath = Path.Combine(LibrariesDirectory, native.Path!.Replace('/', Path.DirectorySeparatorChar));
-            await EnsureFileAsync(native.Url, nativePath, native.Size, cancellationToken, fatal: true);
+            await EnsureFileAsync(native.Url, nativePath, native.Size, native.Sha1, cancellationToken, fatal: true);
         }
     }
 
@@ -1081,7 +1083,7 @@ public class GameFilesService
                 string url = $"{ResourcesUrl}/{asset.Hash[..2]}/{asset.Hash}";
                 string path = Path.Combine(AssetsDirectory, "objects", asset.Hash[..2], asset.Hash);
 
-                await EnsureFileAsync(url, path, asset.Size, cancellationToken, fatal: false);
+                await EnsureFileAsync(url, path, asset.Size, asset.Hash, cancellationToken, fatal: false);
             }
             catch (OperationCanceledException)
             {
@@ -1107,17 +1109,17 @@ public class GameFilesService
         await Task.WhenAll(tasks);
     }
 
-    private async Task EnsureFileAsync(string url, string path, long expectedSize,
+    internal async Task EnsureFileAsync(string url, string path, long expectedSize, string? expectedSha1,
         CancellationToken cancellationToken, bool fatal)
     {
         try
         {
-            if (File.Exists(path))
-            {
-                long length = new FileInfo(path).Length;
-                if (expectedSize <= 0 ? length > 0 : length == expectedSize)
-                    return;
-            }
+            // Reutilizar un archivo ya presente se decide por tamaño: revalidar el
+            // SHA1 de todas las librerías y assets en cada arranque costaba ~12 s
+            // (1.2 GB). La integridad se garantiza sobre lo que se descarga: el
+            // .part se valida contra el hash antes de pasar a ser definitivo.
+            if (FileMatches(path, expectedSize, expectedSha1: null))
+                return;
 
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             string tempPath = path + ".part";
@@ -1128,6 +1130,13 @@ public class GameFilesService
 
                 await using var fileStream = File.Create(tempPath);
                 await response.Content.CopyToAsync(fileStream, cancellationToken);
+            }
+
+            // El archivo descargado no se publica como definitivo hasta validar el hash.
+            if (!FileMatches(tempPath, expectedSize: 0, expectedSha1))
+            {
+                File.Delete(tempPath);
+                throw new InvalidDataException("El archivo descargado no coincide con el SHA1 esperado");
             }
 
             File.Move(tempPath, path, overwrite: true);
@@ -1142,6 +1151,37 @@ public class GameFilesService
             if (fatal)
                 throw new IOException($"No se pudo descargar un archivo necesario ({Path.GetFileName(path)}): {ex.Message}", ex);
         }
+    }
+
+    /// <summary>SHA1 en hexadecimal minúscula del contenido de un archivo.</summary>
+    internal static string ComputeSha1(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA1.HashData(stream)).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Indica si un archivo local ya sirve: existe, coincide el tamaño esperado
+    /// (cuando se conoce) y, si hay SHA1, coincide el contenido.
+    /// </summary>
+    internal static bool FileMatches(string path, long expectedSize, string? expectedSha1)
+    {
+        if (!File.Exists(path))
+            return false;
+
+        long length = new FileInfo(path).Length;
+        if (expectedSize > 0 && length != expectedSize)
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(expectedSha1))
+        {
+            if (length == 0)
+                return false;
+
+            return string.Equals(ComputeSha1(path), expectedSha1, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return expectedSize > 0 || length > 0;
     }
 
     private void ReportProgress(int percent)
