@@ -82,6 +82,12 @@ public partial class App : Application
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<SetupWizardViewModel>();
         services.AddTransient<SkinsPreviewViewModel>();
+        services.AddSingleton<AccountManagerViewModel>();
+        services.AddTransient<AccountManagerWindow>();
+        services.AddSingleton<CreateInstanceViewModel>();
+        services.AddTransient<CreateInstanceWindow>();
+        services.AddTransient<InstanceEditViewModel>();
+        services.AddTransient<InstanceEditWindow>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<ModrinthBrowserViewModel>();
 

@@ -4,6 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TVLauncher.Models;
 
@@ -15,6 +18,7 @@ public class AuthService
     private readonly string _accountsFilePath;
     private List<MinecraftAccount> _accounts;
     private MSession? _currentSession;
+    private readonly MicrosoftAuthService _microsoftAuthService;
 
     public List<MinecraftAccount> Accounts => _accounts;
     public MinecraftAccount? ActiveAccount => _accounts.FirstOrDefault(a => a.IsActive);
@@ -22,14 +26,25 @@ public class AuthService
     public event EventHandler<MinecraftAccount>? AccountAdded;
     public event EventHandler<MinecraftAccount>? AccountRemoved;
     public event EventHandler<MinecraftAccount>? ActiveAccountChanged;
+    public event EventHandler<DeviceCodeInfo>? MicrosoftDeviceCodeReceived;
+    public event EventHandler<string>? MicrosoftAuthStatusChanged;
 
     public AuthService(ConfigService configService)
     {
         _configService = configService;
         _accountsFilePath = Path.Combine(_configService.Config.DataPath, "accounts.json");
         _accounts = new List<MinecraftAccount>();
+        _microsoftAuthService = new MicrosoftAuthService(configService);
+        
+        _microsoftAuthService.DeviceCodeReceived += (_, info) => MicrosoftDeviceCodeReceived?.Invoke(this, info);
+        _microsoftAuthService.StatusChanged += (_, status) => MicrosoftAuthStatusChanged?.Invoke(this, status);
         
         LoadAccounts();
+        
+        // Si hay una cuenta activa, crear la sesión al iniciar
+        var active = ActiveAccount;
+        if (active != null)
+            CreateSessionForAccount(active);
     }
 
     public void LoadAccounts()
@@ -82,7 +97,12 @@ public class AuthService
 
     public MinecraftAccount AddOfflineAccount(string username)
     {
-        // Verificar si ya existe una cuenta offline con ese nombre
+        if (string.IsNullOrWhiteSpace(username))
+            throw new ArgumentException("El nombre de usuario no puede estar vacío", nameof(username));
+        
+        if (username.Length > 16)
+            throw new ArgumentException("El nombre de usuario no puede tener más de 16 caracteres", nameof(username));
+        
         if (_accounts.Any(a => a.Type == AccountType.Offline && a.Username.Equals(username, StringComparison.OrdinalIgnoreCase)))
         {
             throw new Exception("Ya existe una cuenta offline con ese nombre de usuario");
@@ -90,10 +110,11 @@ public class AuthService
 
         var account = new MinecraftAccount
         {
-            Username = username,
-            Uuid = GetOfflineUuid(username),
+            Username = username.Trim(),
+            Uuid = GetOfflineUuid(username.Trim()),
             Type = AccountType.Offline,
             AccessToken = "0",
+            RefreshToken = string.Empty,
             LastUsed = DateTime.Now,
             IsActive = _accounts.Count == 0
         };
@@ -111,12 +132,42 @@ public class AuthService
         return account;
     }
 
-    public async Task<MinecraftAccount> AddMicrosoftAccountAsync()
+    /// <summary>
+    /// Autentica con cuenta Microsoft usando Device Code Flow
+    /// </summary>
+    public async Task<MinecraftAccount> AddMicrosoftAccountAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            await Task.Delay(100);
-            throw new Exception("Autenticación Microsoft no disponible en esta versión simplificada");
+            var result = await _microsoftAuthService.AuthenticateAsync(cancellationToken);
+            
+            if (_accounts.Any(a => a.Type == AccountType.Microsoft && a.Uuid == result.Uuid))
+            {
+                throw new Exception("Ya existe una cuenta Microsoft con este perfil");
+            }
+            
+            var account = new MinecraftAccount
+            {
+                Username = result.Username,
+                Uuid = result.Uuid,
+                AccessToken = result.AccessToken,
+                RefreshToken = result.RefreshToken,
+                Type = AccountType.Microsoft,
+                LastUsed = DateTime.Now,
+                IsActive = _accounts.Count == 0
+            };
+            
+            _accounts.Add(account);
+            
+            if (account.IsActive)
+            {
+                SetActiveAccount(account.Id);
+            }
+            
+            SaveAccounts();
+            AccountAdded?.Invoke(this, account);
+            
+            return account;
         }
         catch (Exception ex)
         {
@@ -126,13 +177,11 @@ public class AuthService
 
     public void SetActiveAccount(string accountId)
     {
-        // Desactivar todas las cuentas
         foreach (var account in _accounts)
         {
             account.IsActive = false;
         }
         
-        // Activar la cuenta seleccionada
         var activeAccount = _accounts.FirstOrDefault(a => a.Id == accountId);
         if (activeAccount != null)
         {
@@ -176,17 +225,17 @@ public class AuthService
         }
     }
 
+    /// <summary>
+    /// Genera un UUID offline válido según el estándar de Mojang (UUID v3 con namespace "OfflinePlayer:")
+    /// </summary>
     private string GetOfflineUuid(string username)
     {
-        // Generar UUID offline basado en el nombre de usuario
-        // Minecraft usa UUID v3 basado en "OfflinePlayer:" + username
-        System.Security.Cryptography.MD5 md5 = System.Security.Cryptography.MD5.Create();
-        byte[] inputBytes = System.Text.Encoding.ASCII.GetBytes("OfflinePlayer:" + username);
+        using var md5 = MD5.Create();
+        byte[] inputBytes = Encoding.UTF8.GetBytes("OfflinePlayer:" + username);
         byte[] hashBytes = md5.ComputeHash(inputBytes);
         
-        // Formatear como UUID
-        hashBytes[6] = (byte)(hashBytes[6] & 0x0f | 0x30);
-        hashBytes[8] = (byte)(hashBytes[8] & 0x3f | 0x80);
+        hashBytes[6] = (byte)((hashBytes[6] & 0x0f) | 0x30);
+        hashBytes[8] = (byte)((hashBytes[8] & 0x3f) | 0x80);
         
         return new Guid(hashBytes).ToString();
     }

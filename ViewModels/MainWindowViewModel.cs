@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +8,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using TVLauncher.Models;
 using TVLauncher.Services;
@@ -50,6 +52,38 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private AppConfig _config;
 
+    [ObservableProperty]
+    private ObservableCollection<string> _gameLogLines = new();
+
+    [ObservableProperty]
+    private bool _hasGameLog;
+
+    [ObservableProperty]
+    private bool _isGameRunning;
+
+    /// <summary>Solicitado cuando el proceso del juego arrancó con éxito: el launcher debe ocultarse.</summary>
+    public event EventHandler? LauncherHideRequested;
+
+    /// <summary>Solicitado cuando el juego terminó: el launcher debe volver a mostrarse.</summary>
+    public event EventHandler? LauncherShowRequested;
+
+    [ObservableProperty]
+    private bool _isLaunching;
+
+    [ObservableProperty]
+    private ObservableCollection<string> _availableVersions = new();
+
+    [ObservableProperty]
+    private string? _selectedVersion;
+
+    [ObservableProperty]
+    private int _minRamGB = 2;
+
+    [ObservableProperty]
+    private int _maxRamGB = 4;
+
+    public bool CanLaunch => !IsGameRunning && !IsLaunching && _authService.ActiveAccount != null && SelectedInstance != null;
+
     public MainWindowViewModel(
         ConfigService configService,
         InstanceManager instanceManager,
@@ -68,6 +102,10 @@ public partial class MainWindowViewModel : ViewModelBase
         Cosmetics = cosmetics;
         _config = configService.Config;
 
+        // Cargar configuración de RAM
+        _minRamGB = configService.Config.MinRamGB;
+        _maxRamGB = configService.Config.MaxRamGB;
+
         // Suscribirse a eventos
         _instanceManager.InstanceCreated += OnInstanceCreated;
         _instanceManager.InstanceDeleted += OnInstanceDeleted;
@@ -75,10 +113,16 @@ public partial class MainWindowViewModel : ViewModelBase
         _authService.ActiveAccountChanged += OnActiveAccountChanged;
         _minecraftService.StatusChanged += OnStatusChanged;
         _minecraftService.DownloadProgressChanged += OnDownloadProgressChanged;
+        _minecraftService.GameLogReceived += OnGameLogReceived;
+        _minecraftService.GameExited += OnGameExited;
         Cosmetics.CloseRequested += (_, _) => IsCosmeticsOpen = false;
 
         // Cargar datos
         LoadData();
+
+        // La carga de versiones (red) se difiere después del primer render de la ventana
+        // para que la interfaz aparezca de inmediato.
+        Dispatcher.UIThread.Post(async () => await LoadVersionsAsync());
     }
 
     private void LoadData()
@@ -107,6 +151,45 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ActiveAccountName = "Sin cuenta";
         }
+        OnPropertyChanged(nameof(CanLaunch));
+    }
+
+    private async Task LoadVersionsAsync()
+    {
+        try
+        {
+            // Trabajo pesado (red/disco) fuera del hilo de UI para no bloquear el arranque
+            var versions = await Task.Run(async () => await _minecraftService.GetVersionListAsync());
+
+            var installed = _instanceManager.Instances
+                .Select(i => i.Version)
+                .Where(v => !string.IsNullOrEmpty(v))
+                .Distinct()
+                .ToList();
+
+            // Lista completa del manifiesto (incluye versiones legacy) sin recortes.
+            var list = installed
+                .Concat(versions.Select(v => v.Id))
+                .Distinct()
+                .ToList();
+
+            // Las colecciones vinculadas a la UI deben modificarse en el hilo de UI
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                AvailableVersions.Clear();
+                foreach (var id in list)
+                    AvailableVersions.Add(id);
+
+                if (SelectedInstance != null && !string.IsNullOrEmpty(SelectedInstance.Version))
+                    SelectedVersion = SelectedInstance.Version;
+                else if (AvailableVersions.Count > 0)
+                    SelectedVersion = AvailableVersions[0];
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Error cargando versiones: {ex.Message}");
+        }
     }
 
     partial void OnSelectedInstanceChanged(MinecraftInstance? value)
@@ -115,7 +198,38 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _instanceManager.SetSelectedInstance(value.Id);
             UpdateInstanceInfo();
+            if (!string.IsNullOrEmpty(value.Version))
+                SelectedVersion = value.Version;
         }
+        OnPropertyChanged(nameof(CanLaunch));
+    }
+
+    partial void OnSelectedVersionChanged(string? value)
+    {
+        if (SelectedInstance != null && !string.IsNullOrEmpty(value))
+        {
+            SelectedInstance.Version = value;
+            _instanceManager.UpdateInstance(SelectedInstance);
+            UpdateInstanceInfo();
+        }
+    }
+
+    partial void OnMinRamGBChanged(int value)
+    {
+        _configService.Config.MinRamGB = value;
+        _configService.SaveConfig();
+    }
+
+    partial void OnMaxRamGBChanged(int value)
+    {
+        _configService.Config.MaxRamGB = value;
+        if (SelectedInstance != null)
+        {
+            SelectedInstance.MinRamGB = _minRamGB;
+            SelectedInstance.MaxRamGB = value;
+            _instanceManager.UpdateInstance(SelectedInstance);
+        }
+        _configService.SaveConfig();
     }
 
     private void UpdateInstanceInfo()
@@ -144,6 +258,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void OnActiveAccountChanged(object? sender, MinecraftAccount account)
     {
         ActiveAccountName = account.Username;
+        OnPropertyChanged(nameof(CanLaunch));
     }
 
     private void OnStatusChanged(object? sender, string message)
@@ -156,18 +271,80 @@ public partial class MainWindowViewModel : ViewModelBase
         DownloadProgress = progress;
     }
 
+    private void OnGameLogReceived(object? sender, GameLogEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            GameLogLines.Add(e.Line);
+            while (GameLogLines.Count > 200)
+            {
+                GameLogLines.RemoveAt(0);
+            }
+
+            HasGameLog = true;
+
+            if (e.IsError || e.Line.Contains("ERROR", StringComparison.OrdinalIgnoreCase) ||
+                e.Line.Contains("Exception", StringComparison.OrdinalIgnoreCase))
+            {
+                StatusMessage = e.Line.Length > 160 ? e.Line[..160] + "..." : e.Line;
+            }
+        });
+    }
+
+    private void OnGameExited(object? sender, int exitCode)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            IsGameRunning = false;
+            IsLaunching = false;
+            OnPropertyChanged(nameof(CanLaunch));
+            DownloadProgress = string.Empty;
+
+            // El juego se cerró: restaurar el launcher
+            LauncherShowRequested?.Invoke(this, EventArgs.Empty);
+            StatusMessage = exitCode == 0
+                ? "Minecraft se cerró correctamente"
+                : $"Minecraft finalizó con código {exitCode}";
+        });
+    }
+
     [RelayCommand]
     private void CreateInstance()
     {
-        StatusMessage = "Crear instancia - Funcionalidad en desarrollo";
+        var createWindow = App.ServiceProvider?.GetRequiredService<CreateInstanceWindow>();
+        if (createWindow != null)
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            {
+                createWindow.ShowDialog(desktop.MainWindow);
+                LoadData();
+            }
+        }
     }
 
     [RelayCommand]
     private void EditInstance()
     {
-        if (SelectedInstance != null)
+        if (SelectedInstance == null)
         {
-            StatusMessage = $"Editando {SelectedInstance.Name} - Funcionalidad en desarrollo";
+            StatusMessage = "No hay instancia seleccionada";
+            return;
+        }
+
+        var editWindow = App.ServiceProvider?.GetRequiredService<InstanceEditWindow>();
+        if (editWindow == null)
+            return;
+
+        var editVm = editWindow.DataContext as InstanceEditViewModel;
+        if (editVm != null)
+        {
+            editVm.Load(SelectedInstance);
+
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            {
+                editWindow.ShowDialog(desktop.MainWindow);
+                LoadData();
+            }
         }
     }
 
@@ -186,8 +363,22 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(SelectedVersion))
+        {
+            StatusMessage = "Selecciona una versión de Minecraft";
+            return;
+        }
+
         try
         {
+            IsLaunching = true;
+            OnPropertyChanged(nameof(CanLaunch));
+
+            // Aplicar la versión seleccionada (la RAM ya es responsabilidad de la instancia/modal)
+            if (!string.IsNullOrEmpty(SelectedVersion))
+                SelectedInstance.Version = SelectedVersion;
+            _instanceManager.UpdateInstance(SelectedInstance);
+
             // Cerrar el armario para liberar el visor 3D antes de lanzar
             IsCosmeticsOpen = false;
 
@@ -199,16 +390,29 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             
             StatusMessage = "Lanzando Minecraft...";
+            IsGameRunning = true;
+            OnPropertyChanged(nameof(CanLaunch));
+
             await _minecraftService.LaunchMinecraftAsync(SelectedInstance);
-            
-            if (!_configService.Config.KeepLauncherOpen)
-            {
-                // Cerrar launcher si está configurado
-            }
+
+            // El proceso del juego arrancó con éxito: ocultar el launcher
+            // para no competir por CPU/RAM ni generar tráfico de fondo (picos de ping).
+            LauncherHideRequested?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
             StatusMessage = $"Error: {ex.Message}";
+            IsGameRunning = false;
+            IsLaunching = false;
+            OnPropertyChanged(nameof(CanLaunch));
+        }
+        finally
+        {
+            if (!IsGameRunning)
+            {
+                IsLaunching = false;
+                OnPropertyChanged(nameof(CanLaunch));
+            }
         }
     }
 
@@ -277,6 +481,13 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void OpenAccounts()
     {
-        StatusMessage = "Gestor de cuentas - Funcionalidad en desarrollo";
+        var accountWindow = App.ServiceProvider?.GetRequiredService<AccountManagerWindow>();
+        if (accountWindow != null)
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            {
+                accountWindow.ShowDialog(desktop.MainWindow);
+            }
+        }
     }
 }

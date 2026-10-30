@@ -1,0 +1,128 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TVLauncher.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="450" d:DesignHeight="470"
+        x:Class="TVLauncher.Views.InstanceEditWindow"
+        x:DataType="vm:InstanceEditViewModel"
+        Title="TVLauncher - Editar Instancia"
+        Width="450" Height="470"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        Background="#121212">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" 
+                   Text="EDITAR INSTANCIA" 
+                   FontSize="22" 
+                   FontWeight="Bold" 
+                   Foreground="White"
+                   Margin="0,0,0,15"/>
+
+        <!-- Nombre -->
+        <StackPanel Grid.Row="1" Spacing="5" Margin="0,0,0,10">
+            <TextBlock Text="Nombre de la instancia" Foreground="#AAAAAA" FontSize="11"/>
+            <TextBox Text="{Binding InstanceName}"
+                     Background="#2D2D2D"
+                     Foreground="White"
+                     BorderBrush="#3F3F3F"/>
+        </StackPanel>
+
+        <!-- Versión -->
+        <StackPanel Grid.Row="2" Spacing="5" Margin="0,0,0,10">
+            <TextBlock Text="Versión de Minecraft" Foreground="#AAAAAA" FontSize="11"/>
+            <ComboBox ItemsSource="{Binding Versions}"
+                      SelectedItem="{Binding SelectedVersion}"
+                      HorizontalAlignment="Stretch"
+                      Background="#2D2D2D"
+                      Foreground="White"/>
+        </StackPanel>
+
+        <!-- ModLoader -->
+        <StackPanel Grid.Row="3" Spacing="5" Margin="0,0,0,10">
+            <TextBlock Text="ModLoader" Foreground="#AAAAAA" FontSize="11"/>
+            <ComboBox ItemsSource="{Binding ModLoaders}"
+                      SelectedItem="{Binding SelectedModLoader}"
+                      HorizontalAlignment="Stretch"
+                      Background="#2D2D2D"
+                      Foreground="White"/>
+        </StackPanel>
+
+        <!-- Versión del ModLoader -->
+        <StackPanel Grid.Row="4" Spacing="5" Margin="0,0,0,10">
+            <TextBlock Text="Versión del loader (Fabric/Forge/NeoForge)" Foreground="#AAAAAA" FontSize="11"/>
+            <ComboBox ItemsSource="{Binding ModLoaderVersions}"
+                      SelectedItem="{Binding SelectedModLoaderVersion}"
+                      PlaceholderText="Última versión disponible"
+                      HorizontalAlignment="Stretch"
+                      Background="#2D2D2D"
+                      Foreground="White"/>
+        </StackPanel>
+
+        <!-- RAM -->
+        <Border Grid.Row="5" 
+                Background="#1E1E1E" 
+                BorderBrush="#3F3F3F" 
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="12"
+                Margin="0,5,0,10">
+            <StackPanel Spacing="8">
+                <TextBlock Text="MEMORIA RAM" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11"/>
+                <Grid>
+                    <TextBlock Text="Mínima" Foreground="#AAAAAA" FontSize="11" HorizontalAlignment="Left"/>
+                    <TextBlock Text="{Binding MinRamGB, StringFormat='{}{0} GB'}" Foreground="#AAAAAA" FontSize="11" HorizontalAlignment="Right"/>
+                </Grid>
+                <Slider Minimum="1" Maximum="16" Value="{Binding MinRamGB}" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                <Grid>
+                    <TextBlock Text="Máxima" Foreground="#AAAAAA" FontSize="11" HorizontalAlignment="Left"/>
+                    <TextBlock Text="{Binding MaxRamGB, StringFormat='{}{0} GB'}" Foreground="#AAAAAA" FontSize="11" HorizontalAlignment="Right"/>
+                </Grid>
+                <Slider Minimum="1" Maximum="16" Value="{Binding MaxRamGB}" TickFrequency="1" IsSnapToTickEnabled="True"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Estado -->
+        <TextBlock Grid.Row="6" 
+                   Text="{Binding StatusMessage}" 
+                   Foreground="#AAAAAA"
+                   FontSize="11"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Bottom"
+                   Margin="0,0,0,10"/>
+
+        <!-- Botones -->
+        <Grid Grid.Row="7">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="1" 
+                    Content="Cancelar" 
+                    Command="{Binding CancelCommand}"
+                    Background="#2D2D2D"
+                    Foreground="White"
+                    Padding="20,8"
+                    Margin="0,0,10,0"/>
+            <Button Grid.Column="2" 
+                    Content="Guardar" 
+                    Command="{Binding SaveCommand}"
+                    Background="#107C10"
+                    Foreground="White"
+                    Padding="25,8"/>
+        </Grid>
+    </Grid>
+</Window>

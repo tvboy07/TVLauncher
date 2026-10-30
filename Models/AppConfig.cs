@@ -19,6 +19,13 @@ public class AppConfig
     public string Language { get; set; } = "es-ES";
     public bool CloseOnLaunch { get; set; } = false;
     public bool KeepLauncherOpen { get; set; } = true;
+
+    /// <summary>
+    /// Client ID de la app pública de Azure usada para el login de Microsoft.
+    /// Se puede sustituir por una app propia (con redirect http://localhost) sin
+    /// recompilar el launcher.
+    /// </summary>
+    public string MicrosoftClientId { get; set; } = string.Empty;
     
     // Cosmetics configuration
     public string CosmeticsJarUrl { get; set; } = "https://cdn.tvlauncher.net/cosmetics/tvl-cosmetics.jar";

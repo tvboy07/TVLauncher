@@ -131,7 +131,8 @@ public class InstanceManager
         }
     }
 
-    public MinecraftInstance CreateInstance(string name, string version, string modLoader = "Vanilla", string modLoaderVersion = "")
+    public MinecraftInstance CreateInstance(string name, string version, string modLoader = "Vanilla", string modLoaderVersion = "",
+        int minRamGB = 2, int maxRamGB = 4)
     {
         var instance = new MinecraftInstance
         {
@@ -140,8 +141,8 @@ public class InstanceManager
             ModLoader = modLoader,
             ModLoaderVersion = modLoaderVersion,
             GameDirectory = Path.Combine(_instancesDirectory, SanitizeFileName(name)),
-            MaxRamGB = _configService.Config.MaxRamGB,
-            MinRamGB = _configService.Config.MinRamGB,
+            MaxRamGB = Math.Clamp(maxRamGB, 1, 32),
+            MinRamGB = Math.Clamp(Math.Min(minRamGB, maxRamGB), 1, 32),
             CreatedAt = DateTime.Now,
             LastPlayed = DateTime.Now,
             AutoConnectServer = true

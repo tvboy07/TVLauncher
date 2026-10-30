@@ -163,22 +163,26 @@
                                 HorizontalAlignment="Left"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="2" 
-                                Orientation="Horizontal" 
-                                HorizontalAlignment="Right"
-                                Spacing="10">
-                        <Button Content="EDITAR" 
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0"
+                                Content="EDITAR" 
                                 Command="{Binding EditInstanceCommand}"
                                 Background="#2D2D2D"
                                 Foreground="White"
-                                Padding="30,10"/>
-                        <Button Content="JUGAR" 
+                                Padding="30,10"
+                                HorizontalAlignment="Left"/>
+                        <Button Grid.Column="1"
+                                Content="JUGAR" 
                                 Command="{Binding LaunchGameCommand}"
                                 Background="#107C10"
                                 Foreground="White"
                                 Padding="40,10"
                                 FontWeight="Bold"/>
-                    </StackPanel>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>
