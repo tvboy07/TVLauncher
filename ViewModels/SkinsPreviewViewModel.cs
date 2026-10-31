@@ -279,72 +279,102 @@ public partial class SkinsPreviewViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Textura de la capa TVLauncher. El visor muestrea la región estándar de capa
+    /// (x 0..22, y 0..17 en una textura de 64x64), así que todo el diseño —incluido
+    /// el logo TVL— debe dibujarse dentro de ese rectángulo.
+    /// </summary>
     private byte[] GenerateTvLauncherCape()
     {
-        int size = 64;
-        var info = new SKImageInfo(size, 32, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var info = new SKImageInfo(64, 32, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var bmp = new SKBitmap(info);
         using var canvas = new SKCanvas(bmp);
         canvas.Clear(SKColors.Transparent);
 
-        // Fondo degradado oscuro/violeta
-        using var paint = new SKPaint { IsAntialias = true };
-        var colors = new[] { SKColor.Parse("#0F1115"), SKColor.Parse("#6C5CE7") };
-        using var shader = SKShader.CreateLinearGradient(new SKPoint(0, 0), new SKPoint(size, 0), colors, null, SKShaderTileMode.Clamp);
-        paint.Shader = shader;
-        canvas.DrawRect(new SKRect(0, 0, size, 32), paint);
+        using var paint = new SKPaint { IsAntialias = false };
 
-        // Detalle diagonal sutil
-        paint.Shader = null;
-        paint.Color = SKColor.Parse("#7D6FF0");
-        paint.StrokeWidth = 2;
-        canvas.DrawLine(0, 10, 64, 6, paint);
-        canvas.DrawLine(0, 14, 64, 10, paint);
+        // Fondo: degradado vertical oscuro -> violeta en toda la zona de la capa.
+        var colors = new[] { SKColor.Parse("#0F1115"), SKColor.Parse("#3B2E9B"), SKColor.Parse("#6C5CE7") };
+        using (var shader = SKShader.CreateLinearGradient(
+                   new SKPoint(0, 0), new SKPoint(0, 17), colors, null, SKShaderTileMode.Clamp))
+        {
+            paint.Shader = shader;
+            canvas.DrawRect(new SKRect(0, 0, 22, 17), paint);
+            paint.Shader = null;
+        }
 
-        // Logo TVL
+        // Marco neón dentro de la ventana que ve la cámara (la capa se gira 180°
+        // y la cara exterior muestrea x 3..13, y 1..17).
+        paint.Color = SKColor.Parse("#6C5CE7");
+        canvas.DrawRect(new SKRect(3, 0.6f, 3.7f, 16.4f), paint);
+        canvas.DrawRect(new SKRect(12.3f, 0.6f, 13, 16.4f), paint);
+
+        // Bandas de acento.
+        paint.Color = SKColor.Parse("#8B7BFF");
+        canvas.DrawRect(new SKRect(3.7f, 2, 12.3f, 2.7f), paint);
+        canvas.DrawRect(new SKRect(3.7f, 14.3f, 12.3f, 15), paint);
+
+        // Logo TVL: centrado en la cara exterior (x 3..13) y con sombra para contrastar.
+        paint.Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) ?? SKTypeface.Default;
+        paint.TextSize = 4.8f;
+        paint.TextAlign = SKTextAlign.Center;
+        float logoY = 11.2f;
+        paint.Color = SKColor.Parse("#0B0C10");
+        canvas.DrawText("TVL", 8, logoY + 0.6f, paint);
         paint.Color = SKColors.White;
-        paint.TextSize = 8;
-        paint.Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold);
-        canvas.DrawText("TVL", 4, 24, paint);
+        canvas.DrawText("TVL", 8, logoY, paint);
+        paint.TextAlign = SKTextAlign.Left;
 
         using var img = SKImage.FromBitmap(bmp);
         using var data = img.Encode(SKEncodedImageFormat.Png, 90);
         return data.ToArray();
     }
 
+    /// <summary>
+    /// Textura del sombrero TVLauncher. Usa dos regiones del atlas: 0..21 para la
+    /// copa y 32..58 para el ala (el visor muestrea esas UV concretas).
+    /// </summary>
     private byte[] GenerateTvLauncherHat()
     {
-        int size = 64;
-        var info = new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var info = new SKImageInfo(64, 64, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var bmp = new SKBitmap(info);
         using var canvas = new SKCanvas(bmp);
         canvas.Clear(SKColors.Transparent);
 
-        using var paint = new SKPaint { IsAntialias = true };
-        // Ala
-        paint.Color = SKColor.Parse("#0F1115");
-        canvas.DrawRoundRect(new SKRect(8, 34, 56, 40), 2, 2, paint);
-        // Borde violeta ala
-        paint.Style = SKPaintStyle.Stroke;
+        using var paint = new SKPaint { IsAntialias = false };
+
+        // Copa: violeta brillante en toda la región para que se vea incluso de noche.
+        var crownColors = new[] { SKColor.Parse("#A99BFF"), SKColor.Parse("#7D6FF0"), SKColor.Parse("#6C5CE7") };
+        using (var shader = SKShader.CreateLinearGradient(
+                   new SKPoint(0, 0), new SKPoint(0, 8), crownColors, null, SKShaderTileMode.Clamp))
+        {
+            paint.Shader = shader;
+            canvas.DrawRect(new SKRect(0, 0, 21, 8), paint);
+            paint.Shader = null;
+        }
+        // Cinta oscura y filo luminoso en la parte baja de la copa.
+        paint.Color = SKColor.Parse("#2A2360");
+        canvas.DrawRect(new SKRect(0, 5.2f, 21, 6.4f), paint);
+        paint.Color = SKColor.Parse("#C9C0FF");
+        canvas.DrawRect(new SKRect(0, 6.4f, 21, 7.2f), paint);
         paint.Color = SKColor.Parse("#6C5CE7");
-        paint.StrokeWidth = 1.5f;
-        canvas.DrawRoundRect(new SKRect(8, 34, 56, 40), 2, 2, paint);
-        paint.Style = SKPaintStyle.Fill;
-        // Copa
-        paint.Color = SKColor.Parse("#151820");
-        canvas.DrawRoundRect(new SKRect(18, 18, 46, 36), 4, 4, paint);
-        // Banda violeta
-        paint.Color = SKColor.Parse("#6C5CE7");
-        canvas.DrawRect(new SKRect(18, 28, 46, 32), paint);
-        // Brillo
-        paint.Color = SKColor.Parse("#8B7BFF");
-        canvas.DrawCircle(24, 24, 2, paint);
-        // Detalle superior
-        paint.Color = SKColor.Parse("#0F1115");
-        canvas.DrawRoundRect(new SKRect(20, 16, 44, 20), 3, 3, paint);
-        paint.Style = SKPaintStyle.Stroke;
-        paint.Color = SKColor.Parse("#6C5CE7");
-        canvas.DrawRoundRect(new SKRect(20, 16, 44, 20), 3, 3, paint);
+        canvas.DrawRect(new SKRect(0, 7.2f, 21, 8), paint);
+
+        // Ala: violeta con borde neón y detalle diagonal.
+        var brimColors = new[] { SKColor.Parse("#8B7BFF"), SKColor.Parse("#6C5CE7"), SKColor.Parse("#4A3BC7") };
+        using (var shader = SKShader.CreateLinearGradient(
+                   new SKPoint(0, 0), new SKPoint(0, 6.4f), brimColors, null, SKShaderTileMode.Clamp))
+        {
+            paint.Shader = shader;
+            canvas.DrawRect(new SKRect(32, 0, 58, 6.4f), paint);
+            paint.Shader = null;
+        }
+        paint.Color = SKColor.Parse("#C9C0FF");
+        canvas.DrawRect(new SKRect(32, 6.4f, 58, 7.2f), paint);
+        paint.Color = SKColor.Parse("#3A2FA0");
+        canvas.DrawRect(new SKRect(32, 7.2f, 58, 8), paint);
+        paint.Color = SKColor.Parse("#A99BFF");
+        canvas.DrawLine(36, 1.5f, 52, 5f, paint);
 
         using var img = SKImage.FromBitmap(bmp);
         using var data = img.Encode(SKEncodedImageFormat.Png, 90);

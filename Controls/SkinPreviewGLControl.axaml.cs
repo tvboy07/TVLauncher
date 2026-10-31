@@ -421,19 +421,18 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
         AddBox(v, -5, -16, 0, 10, 16, 1, 0, 0);
         EndPart(s, new Vector3(0, 12, -2.3f), PartKind.Cape);
 
-        // Sombrero TVLauncher: ligeramente más grande que la cabeza, inclinado hacia delante
-        float hw = 5.2f;
-        float hd = 5.2f;
-        float hh = 2.6f;
-        float br = 6.2f;
-        float bd = 6.2f;
-        float bh = 0.9f;
+        // Sombrero TVLauncher sobre la coronilla (la cabeza va de y=12 a y=20.5).
+        // Ala en 32..58 del atlas y copa en 0..21 (ver GenerateTvLauncherHat).
+        float hw = 6f, hd = 6f, hh = 3f;
+        float br = 8f, bd = 8f, bh = 0.9f;
+        const float headTop = 20f;
+        float brimY = headTop + 0.3f;
         s = v.Count / 5;
-        // Ala del sombrero
-        AddBox(v, -br / 2f, 8.6f, -bd / 2f + 0.8f, br, bh, bd, 0, 0);
+        // Ala
+        AddBox(v, -br / 2f, brimY, -bd / 2f + 0.34f, br, bh, bd, 32, 0);
         // Copa
-        AddBox(v, -hw / 2f, 9.5f, -hd / 2f + 0.6f, hw, hh, hd, 0, 0);
-        EndPart(s, new Vector3(0, 16, 0), PartKind.Hat);
+        AddBox(v, -hw / 2f, brimY + bh, -hd / 2f + 0.45f, hw, hh, hd, 0, 0);
+        EndPart(s, new Vector3(0, brimY + bh / 2f, 0), PartKind.Hat);
 
         return v.ToArray();
     }
@@ -621,7 +620,14 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
             using var decoded = SKBitmap.Decode(_hatData);
             if (decoded == null) { Log.Error("[GL] No se pudo decodificar el PNG del sombrero"); return; }
 
-            _hatTexture = CreateTexture(decoded);
+            // El PNG puede decodificarse como BGRA; CreateTexture sube RGBA.
+            // Normalizamos para que los colores del sombrero no salgan invertidos.
+            using var rgba = new SKBitmap(new SKImageInfo(decoded.Width, decoded.Height,
+                SKColorType.Rgba8888, SKAlphaType.Unpremul));
+            using (var c = new SKCanvas(rgba))
+                c.DrawBitmap(decoded, 0, 0);
+
+            _hatTexture = CreateTexture(rgba);
             _hatLoaded = true;
             Log.Info($"[GL] Sombrero cargado {decoded.Width}x{decoded.Height} (id={_hatTexture})");
         }
@@ -650,10 +656,13 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
             }
             case PartKind.Hat:
             {
-                float tilt = -12f * Deg;
-                float bob = _walking ? MathF.Sin(_walkPhase) * 1.2f : 0f;
-                return Matrix4x4.CreateRotationX(tilt)
-                     * Matrix4x4.CreateTranslation(p.Pivot + new Vector3(0, bob, 0.6f));
+                // El vértice ya está en coordenadas del modelo: se inclina alrededor
+                // de la coronilla y se desplaza ligeramente hacia delante.
+                float tilt = 10f * Deg;
+                float bob = _walking ? MathF.Sin(_walkPhase) * 0.5f : 0f;
+                return Matrix4x4.CreateTranslation(-p.Pivot)
+                     * Matrix4x4.CreateRotationX(tilt)
+                     * Matrix4x4.CreateTranslation(p.Pivot + new Vector3(0, bob, 0.4f));
             }
             default: return Matrix4x4.Identity;
         }
