@@ -61,3 +61,6 @@ Thumbs.db
 desktop.ini
 *.swp
 *.swo
+
+# Superpowers scratch workspace
+.superpowers/
