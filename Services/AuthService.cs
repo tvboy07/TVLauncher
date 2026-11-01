@@ -59,6 +59,25 @@ public class AuthService
         {
             _accounts = _accountsStore.Load();
             _accountsWritable = true;
+
+            // Migrar las cuentas offline creadas con el formato little-endian
+            // antiguo (new Guid(hashBytes)) al UUID real de Minecraft.
+            bool migrated = false;
+            foreach (var account in _accounts)
+            {
+                if (account.Type != AccountType.Offline)
+                    continue;
+
+                string expected = ComputeOfflineUuid(account.Username);
+                if (!string.Equals(account.Uuid, expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    account.Uuid = expected;
+                    migrated = true;
+                }
+            }
+
+            if (migrated)
+                SaveAccounts();
         }
         catch (Exception ex)
         {
@@ -240,17 +259,30 @@ public class AuthService
     }
 
     /// <summary>
-    /// Genera un UUID offline válido según el estándar de Mojang (UUID v3 con namespace "OfflinePlayer:")
+    /// Genera un UUID offline válido según el estándar de Mojang (UUID v3 con namespace "OfflinePlayer:").
     /// </summary>
-    private string GetOfflineUuid(string username)
+    internal static string ComputeOfflineUuid(string username)
     {
         using var md5 = MD5.Create();
         byte[] inputBytes = Encoding.UTF8.GetBytes("OfflinePlayer:" + username);
         byte[] hashBytes = md5.ComputeHash(inputBytes);
-        
+
         hashBytes[6] = (byte)((hashBytes[6] & 0x0f) | 0x30);
         hashBytes[8] = (byte)((hashBytes[8] & 0x3f) | 0x80);
-        
-        return new Guid(hashBytes).ToString();
+
+        // Minecraft/Java lee el MD5 en big-endian. new Guid(byte[]) lo
+        // interpreta en little-endian y produce un UUID distinto.
+        var sb = new StringBuilder(36);
+        for (int i = 0; i < hashBytes.Length; i++)
+        {
+            if (i == 4 || i == 6 || i == 8 || i == 10)
+                sb.Append('-');
+            sb.Append(hashBytes[i].ToString("x2"));
+        }
+
+        return sb.ToString();
     }
+
+    private static string GetOfflineUuid(string username)
+        => ComputeOfflineUuid(username);
 }
