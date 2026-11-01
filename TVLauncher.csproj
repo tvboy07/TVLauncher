@@ -22,6 +22,11 @@
     <None Remove="tests\**" />
     <EmbeddedResource Remove="tests\**" />
     <AvaloniaXaml Remove="tests\**" />
+
+    <!-- La herramienta de exportación de texturas es un proyecto aparte. -->
+    <Compile Remove="tools\**" />
+    <None Remove="tools\**" />
+    <EmbeddedResource Remove="tools\**" />
   </ItemGroup>
 
   <ItemGroup>
