@@ -19,7 +19,7 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
 {
     private const float Deg = MathF.PI / 180f;
 
-    private enum PartKind { Static, RightArm, LeftArm, RightLeg, LeftLeg, Cape, Hat }
+    private enum PartKind { Static, Head, RightArm, LeftArm, RightLeg, LeftLeg, Cape, Hat }
     private readonly record struct ModelPart(int Start, int Count, Vector3 Pivot, PartKind Kind);
     private readonly List<ModelPart> _parts = new();
 
@@ -379,11 +379,12 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
 
         int s;
 
-        // Cabeza
+        // Cabeza. Tiene su propia transformación (pivote en el cuello) para que el
+        // sombrero pueda heredarla y moverse exactamente igual que ella.
         s = v.Count / 5;
         AddBox(v, -4, 12, -4, 8, 8, 8, 0, 0);
         AddBox(v, -4, 12, -4, 8, 8, 8, 32, 0, 0.5f, skipBottom: true);
-        EndPart(s, Vector3.Zero, PartKind.Static);
+        EndPart(s, new Vector3(0, 12, 0), PartKind.Head);
 
         // Torso
         s = v.Count / 5;
@@ -417,22 +418,32 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
 
         // Capa (cape): caja de 10x16x1 colgando del hombro. Coordenadas relativas al pivote.
         // Se gira 180° en Y al dibujar para que la cara exterior mire hacia la espalda.
+        // La cara exterior muestrea la ventana UV 3..13 (tx=2 + d=1), que es donde
+        // GenerateTvLauncherCape pinta el marco y el logo. Con tx=0 la ventana era 1..11
+        // y el diseño aparecía 2 px corrido a la derecha.
+        const int capeUvTx = 2;
         s = v.Count / 5;
-        AddBox(v, -5, -16, 0, 10, 16, 1, 0, 0);
+        AddBox(v, -5, -16, 0, 10, 16, 1, capeUvTx, 0);
         EndPart(s, new Vector3(0, 12, -2.3f), PartKind.Cape);
 
-        // Sombrero TVLauncher sobre la coronilla (la cabeza va de y=12 a y=20.5).
-        // Ala en 32..58 del atlas y copa en 0..21 (ver GenerateTvLauncherHat).
-        float hw = 6f, hd = 6f, hh = 3f;
-        float br = 8f, bd = 8f, bh = 0.9f;
+        // Sombrero TVLauncher sobre la coronilla (la cabeza va de y=12 a y=20).
+        // Copa en la región 0..32 x 0..12, ala en 0..40 x 16..28 y cinta en
+        // 0..32 x 32..40 del atlas (ver GenerateTvLauncherHat). La cinta es una caja
+        // ligeramente mayor que la base de la copa para dar silueta de fedora.
         const float headTop = 20f;
-        float brimY = headTop + 0.3f;
+        const float brimW = 9.2f, brimD = 9.2f, brimH = 0.5f;
+        const float crownW = 6.2f, crownD = 6.2f, crownH = 2.8f;
+        const float bandW = 6.35f, bandD = 6.35f, bandH = 0.5f;
+        float brimY = headTop + 0.2f;
+        float crownY = brimY + brimH;
         s = v.Count / 5;
         // Ala
-        AddBox(v, -br / 2f, brimY, -bd / 2f + 0.34f, br, bh, bd, 32, 0);
+        AddBox(v, -brimW / 2f, brimY, -brimD / 2f, brimW, brimH, brimD, 0, 16);
         // Copa
-        AddBox(v, -hw / 2f, brimY + bh, -hd / 2f + 0.45f, hw, hh, hd, 0, 0);
-        EndPart(s, new Vector3(0, brimY + bh / 2f, 0), PartKind.Hat);
+        AddBox(v, -crownW / 2f, crownY, -crownD / 2f, crownW, crownH, crownD, 0, 0);
+        // Cinta en la base de la copa
+        AddBox(v, -bandW / 2f, crownY + 0.02f, -bandD / 2f, bandW, bandH, bandD, 0, 32);
+        EndPart(s, new Vector3(0, brimY + brimH / 2f, 0), PartKind.Hat);
 
         return v.ToArray();
     }
@@ -639,10 +650,29 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
     private static Matrix4x4 About(Vector3 pivot, float angle)
         => Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationX(angle) * Matrix4x4.CreateTranslation(pivot);
 
+    /// <summary>
+    /// Transformación de la cabeza: pivote en el cuello y un bob/pitch suave al caminar.
+    /// El sombrero se multiplica por esta misma matriz, igual que si estuviera dibujado
+    /// dentro de su PushMatrix/PopMatrix, así que nunca puede atravesarla.
+    /// </summary>
+    private Matrix4x4 HeadTransform()
+    {
+        if (!_walking)
+            return Matrix4x4.Identity;
+
+        float phase = _walkPhase * 2f;
+        float bob = MathF.Sin(phase) * 0.12f;
+        float pitch = MathF.Sin(phase) * 1.5f * Deg;
+
+        return About(new Vector3(0, 12, 0), pitch)
+             * Matrix4x4.CreateTranslation(0, bob, 0);
+    }
+
     private Matrix4x4 PartMatrix(in ModelPart p, float walk)
     {
         switch (p.Kind)
         {
+            case PartKind.Head: return HeadTransform();
             case PartKind.RightArm: return About(p.Pivot, -walk);
             case PartKind.LeftArm:  return About(p.Pivot, walk);
             case PartKind.RightLeg: return About(p.Pivot, walk);
@@ -656,13 +686,13 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
             }
             case PartKind.Hat:
             {
-                // El vértice ya está en coordenadas del modelo: se inclina alrededor
-                // de la coronilla y se desplaza ligeramente hacia delante.
-                float tilt = 10f * Deg;
-                float bob = _walking ? MathF.Sin(_walkPhase) * 0.5f : 0f;
+                // Colocación local del sombrero (inclinación leve alrededor de su ala),
+                // seguida de la transformación de la cabeza: hereda rotación y bob.
+                float tilt = 2f * Deg;
                 return Matrix4x4.CreateTranslation(-p.Pivot)
                      * Matrix4x4.CreateRotationX(tilt)
-                     * Matrix4x4.CreateTranslation(p.Pivot + new Vector3(0, bob, 0.4f));
+                     * Matrix4x4.CreateTranslation(p.Pivot)
+                     * HeadTransform();
             }
             default: return Matrix4x4.Identity;
         }

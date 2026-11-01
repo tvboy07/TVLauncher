@@ -31,7 +31,15 @@
                                 Command="{Binding $parent[UserControl].((vm:SkinsPreviewViewModel)DataContext).EquipCosmeticCommand}"
                                 CommandParameter="{Binding}"
                                 FontSize="11" Padding="12,5"
-                                IsVisible="{Binding IsOwned}"/>
+                                IsVisible="{Binding CanEquip}"/>
+                        <Button Content="Quitar"
+                                Classes="ghost"
+                                Foreground="{StaticResource DangerBrush}"
+                                Command="{Binding $parent[UserControl].((vm:SkinsPreviewViewModel)DataContext).UnequipCosmeticCommand}"
+                                CommandParameter="{Binding}"
+                                AutomationProperties.Name="Quitar cosmético equipado"
+                                FontSize="11" Padding="10,5"
+                                IsVisible="{Binding IsEquipped}"/>
                     </StackPanel>
                 </Grid>
             </Border>

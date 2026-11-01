@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -212,7 +213,7 @@ public class CosmeticsService
     }
 }
 
-public class CosmeticItem
+public partial class CosmeticItem : ObservableObject
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -220,6 +221,14 @@ public class CosmeticItem
     public string TextureUrl { get; set; } = string.Empty;
     public bool IsOwned { get; set; } = false;
     public bool IsPremium { get; set; } = false;
+
+    /// <summary>El cosmético está equipado actualmente (muestra el botón Quitar).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEquip))]
+    private bool _isEquipped;
+
+    /// <summary>Se puede equipar: es propiedad del usuario y no está ya equipado.</summary>
+    public bool CanEquip => IsOwned && !IsEquipped;
 }
 
 public class CosmeticsConfig

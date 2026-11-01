@@ -156,6 +156,40 @@ public partial class SkinsPreviewViewModel : ViewModelBase
             EquippedCosmetics.Add(_configService.Config.EquippedCapeId);
         if (!string.IsNullOrWhiteSpace(_configService.Config.EquippedHatId) && !EquippedCosmetics.Contains(_configService.Config.EquippedHatId))
             EquippedCosmetics.Add(_configService.Config.EquippedHatId);
+
+        SyncEquippedFlags();
+    }
+
+    /// <summary>
+    /// Refleja en cada <see cref="CosmeticItem"/> si está equipado. Es lo que usan
+    /// los botones Equipar / Quitar de la plantilla de cosméticos.
+    /// </summary>
+    private void SyncEquippedFlags()
+    {
+        foreach (var item in AvailableCosmetics)
+        {
+            item.IsEquipped = EquippedCosmetics.Contains(item.Id)
+                              || _configService.Config.EquippedCapeId == item.Id
+                              || _configService.Config.EquippedHatId == item.Id;
+        }
+    }
+
+    /// <summary>
+    /// Solo se puede llevar una capa, un sombrero o unas alas a la vez: al equipar
+    /// un cosmético se desequipan los demás del mismo tipo.
+    /// </summary>
+    private void UnequipSameType(CosmeticItem cosmetic)
+    {
+        foreach (var other in AvailableCosmetics
+                     .Where(c => !ReferenceEquals(c, cosmetic)
+                                 && string.Equals(c.Type, cosmetic.Type, StringComparison.OrdinalIgnoreCase)
+                                 && c.IsEquipped)
+                     .ToList())
+        {
+            other.IsEquipped = false;
+            EquippedCosmetics.Remove(other.Id);
+            _cosmeticsService.UnequipCosmetic(other.Id);
+        }
     }
 
     private void LoadSavedSkins()
@@ -331,8 +365,9 @@ public partial class SkinsPreviewViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Textura del sombrero TVLauncher. Usa dos regiones del atlas: 0..21 para la
-    /// copa y 32..58 para el ala (el visor muestrea esas UV concretas).
+    /// Textura del sombrero TVLauncher. El atlas se divide en tres bandas que cubren
+    /// todo el UV que muestrean las cajas (no solo el centro de cada cara):
+    /// copa en 0..32 x 0..12, ala en 0..40 x 16..28 y cinta en 0..32 x 32..40.
     /// </summary>
     private byte[] GenerateTvLauncherHat()
     {
@@ -343,38 +378,41 @@ public partial class SkinsPreviewViewModel : ViewModelBase
 
         using var paint = new SKPaint { IsAntialias = false };
 
-        // Copa: violeta brillante en toda la región para que se vea incluso de noche.
-        var crownColors = new[] { SKColor.Parse("#A99BFF"), SKColor.Parse("#7D6FF0"), SKColor.Parse("#6C5CE7") };
+        // Copa: degradado violeta en toda la banda. La caja es 6.2 x 2.8 x 6.2,
+        // así que las caras laterales muestrean v = 6.2..9.0.
+        var crownColors = new[] { SKColor.Parse("#B7AAFF"), SKColor.Parse("#8B7BFF"), SKColor.Parse("#6C5CE7") };
         using (var shader = SKShader.CreateLinearGradient(
-                   new SKPoint(0, 0), new SKPoint(0, 8), crownColors, null, SKShaderTileMode.Clamp))
+                   new SKPoint(0, 0), new SKPoint(0, 9f), crownColors, null, SKShaderTileMode.Clamp))
         {
             paint.Shader = shader;
-            canvas.DrawRect(new SKRect(0, 0, 21, 8), paint);
+            canvas.DrawRect(new SKRect(0, 0, 32, 12), paint);
             paint.Shader = null;
         }
-        // Cinta oscura y filo luminoso en la parte baja de la copa.
-        paint.Color = SKColor.Parse("#2A2360");
-        canvas.DrawRect(new SKRect(0, 5.2f, 21, 6.4f), paint);
-        paint.Color = SKColor.Parse("#C9C0FF");
-        canvas.DrawRect(new SKRect(0, 6.4f, 21, 7.2f), paint);
-        paint.Color = SKColor.Parse("#6C5CE7");
-        canvas.DrawRect(new SKRect(0, 7.2f, 21, 8), paint);
 
-        // Ala: violeta con borde neón y detalle diagonal.
-        var brimColors = new[] { SKColor.Parse("#8B7BFF"), SKColor.Parse("#6C5CE7"), SKColor.Parse("#4A3BC7") };
+        // Cinta: banda oscura con filo luminoso en la base.
+        paint.Color = SKColor.Parse("#2A2360");
+        canvas.DrawRect(new SKRect(0, 32, 32, 40), paint);
+        paint.Color = SKColor.Parse("#D8D2FF");
+        canvas.DrawRect(new SKRect(0, 38.55f, 32, 38.85f), paint);
+
+        // Ala: degradado en la banda 16..28. Las caras laterales (0.5 de alto)
+        // muestrean v = 25.2..25.7, que es el filo neón; la cara superior usa 16..25.2.
+        var brimColors = new[] { SKColor.Parse("#9C8CFF"), SKColor.Parse("#6C5CE7"), SKColor.Parse("#4A3BC7") };
         using (var shader = SKShader.CreateLinearGradient(
-                   new SKPoint(0, 0), new SKPoint(0, 6.4f), brimColors, null, SKShaderTileMode.Clamp))
+                   new SKPoint(0, 16), new SKPoint(0, 25.2f), brimColors, null, SKShaderTileMode.Clamp))
         {
             paint.Shader = shader;
-            canvas.DrawRect(new SKRect(32, 0, 58, 6.4f), paint);
+            canvas.DrawRect(new SKRect(0, 16, 40, 25.2f), paint);
             paint.Shader = null;
         }
         paint.Color = SKColor.Parse("#C9C0FF");
-        canvas.DrawRect(new SKRect(32, 6.4f, 58, 7.2f), paint);
+        canvas.DrawRect(new SKRect(0, 25.2f, 40, 25.7f), paint);
         paint.Color = SKColor.Parse("#3A2FA0");
-        canvas.DrawRect(new SKRect(32, 7.2f, 58, 8), paint);
-        paint.Color = SKColor.Parse("#A99BFF");
-        canvas.DrawLine(36, 1.5f, 52, 5f, paint);
+        canvas.DrawRect(new SKRect(0, 25.7f, 40, 26.3f), paint);
+
+        // Detalle diagonal sobre la cara superior del ala.
+        paint.Color = SKColor.Parse("#B7AAFF");
+        canvas.DrawLine(4, 18, 36, 24, paint);
 
         using var img = SKImage.FromBitmap(bmp);
         using var data = img.Encode(SKEncodedImageFormat.Png, 90);
@@ -517,6 +555,7 @@ public partial class SkinsPreviewViewModel : ViewModelBase
             return;
         }
 
+        UnequipSameType(cosmetic);
         _cosmeticsService.EquipCosmetic(cosmetic.Id);
         if (!EquippedCosmetics.Contains(cosmetic.Id))
         {
@@ -587,6 +626,8 @@ public partial class SkinsPreviewViewModel : ViewModelBase
                 StatusMessage = $"{cosmetic.Name} equipadas (se verán en el juego)";
                 break;
         }
+
+        cosmetic.IsEquipped = true;
     }
 
     [RelayCommand]
@@ -595,6 +636,7 @@ public partial class SkinsPreviewViewModel : ViewModelBase
         if (cosmetic == null)
             return;
 
+        cosmetic.IsEquipped = false;
         _cosmeticsService.UnequipCosmetic(cosmetic.Id);
         EquippedCosmetics.Remove(cosmetic.Id);
 
@@ -709,6 +751,8 @@ public partial class SkinsPreviewViewModel : ViewModelBase
                 IsHatEquipped = false;
                 HatEquipped?.Invoke(this, null);
             }
+
+            SyncEquippedFlags();
         }
         catch (Exception ex)
         {
