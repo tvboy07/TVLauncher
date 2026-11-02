@@ -74,6 +74,7 @@ public partial class App : Application
         services.AddSingleton<MinecraftService>();
         services.AddSingleton<JavaService>();
         services.AddSingleton<GameFilesService>();
+        services.AddSingleton<ICosmeticsPublisher, CosmeticsPublisher>();
         services.AddSingleton<CosmeticsService>();
         services.AddSingleton<ModrinthService>();
         services.AddSingleton<SkinService>();

@@ -46,8 +46,13 @@ public class AppConfig
     // Persistencia de skins y cosméticos equipados
     public string? EquippedSkinPath { get; set; }
     public string? EquippedSkinUsername { get; set; }
+
+    /// <summary>ID del cosmético de capa equipado, o <c>null</c> si no hay.</summary>
     public string? EquippedCapeId { get; set; }
+
+    /// <summary>ID del cosmético de sombrero equipado, o <c>null</c> si no hay.</summary>
     public string? EquippedHatId { get; set; }
+
     public List<SavedSkinEntry> SavedSkins { get; set; } = new();
 }
 

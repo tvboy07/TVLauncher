@@ -12,6 +12,7 @@ namespace TVLauncher.Services;
 public class CosmeticsService
 {
     private readonly ConfigService _configService;
+    private readonly ICosmeticsPublisher _publisher;
     private readonly HttpClient _httpClient;
     private readonly string _cosmeticsConfigPath;
     private readonly string _cosmeticsJarPath;
@@ -23,9 +24,10 @@ public class CosmeticsService
     public event EventHandler<string>? StatusChanged;
     public event EventHandler<CosmeticItem>? CosmeticEquipped;
 
-    public CosmeticsService(ConfigService configService)
+    public CosmeticsService(ConfigService configService, ICosmeticsPublisher publisher)
     {
         _configService = configService;
+        _publisher = publisher;
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "TVLauncher/1.0.0");
         _httpClient.Timeout = TimeSpan.FromMinutes(10);
