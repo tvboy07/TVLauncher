@@ -1,0 +1,2 @@
+[functions.publish-cosmetics]
+verify_jwt = false
