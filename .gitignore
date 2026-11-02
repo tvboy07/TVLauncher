@@ -62,5 +62,10 @@ desktop.ini
 *.swp
 *.swo
 
+# --- Mod Fabric (Gradle) ---
+fabric-mod/.gradle/
+fabric-mod/build/
+fabric-mod/run/
+
 # Superpowers scratch workspace
 .superpowers/
