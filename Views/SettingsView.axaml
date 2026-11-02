@@ -55,6 +55,25 @@
                 </StackPanel>
             </Border>
 
+            <!-- Sincronización in-game -->
+            <Border Classes="card" Padding="20">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Sincronización in-game" Classes="h2"/>
+                        <TextBlock Text="Supabase permite que los jugadores con el launcher se vean entre sí"
+                                   Classes="caption"/>
+                    </StackPanel>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="URL DE SUPABASE" Classes="label"/>
+                        <TextBox Text="{Binding CosmeticsSupabaseUrl}"
+                                 Watermark="https://tu-proyecto.supabase.co"/>
+                        <TextBlock Text="ANON KEY" Classes="label"/>
+                        <TextBox Text="{Binding CosmeticsSupabaseAnonKey}"
+                                 Watermark="Clave pública anon"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Servidor SMP por defecto -->
             <Border Classes="card" Padding="20">
                 <StackPanel Spacing="14">

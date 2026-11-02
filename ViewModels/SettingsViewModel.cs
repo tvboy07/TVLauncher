@@ -34,6 +34,12 @@ public partial class SettingsViewModel : ViewModelBase
     private bool _keepLauncherOpen;
 
     [ObservableProperty]
+    private string _cosmeticsSupabaseUrl = string.Empty;
+
+    [ObservableProperty]
+    private string _cosmeticsSupabaseAnonKey = string.Empty;
+
+    [ObservableProperty]
     private string _defaultSmpName = string.Empty;
 
     [ObservableProperty]
@@ -59,6 +65,8 @@ public partial class SettingsViewModel : ViewModelBase
         EnableCosmetics = _configService.Config.EnableCosmetics;
         AutoOptimizeMemory = _configService.Config.AutoOptimizeMemory;
         KeepLauncherOpen = _configService.Config.KeepLauncherOpen;
+        CosmeticsSupabaseUrl = _configService.Config.CosmeticsSupabaseUrl;
+        CosmeticsSupabaseAnonKey = _configService.Config.CosmeticsSupabaseAnonKey;
         DefaultSmpName = _configService.Config.DefaultSmpServer.Name;
         DefaultSmpIp = _configService.Config.DefaultSmpServer.Ip;
         DefaultSmpPort = _configService.Config.DefaultSmpServer.Port;
@@ -74,6 +82,8 @@ public partial class SettingsViewModel : ViewModelBase
         _configService.Config.EnableCosmetics = EnableCosmetics;
         _configService.Config.AutoOptimizeMemory = AutoOptimizeMemory;
         _configService.Config.KeepLauncherOpen = KeepLauncherOpen;
+        _configService.Config.CosmeticsSupabaseUrl = CosmeticsSupabaseUrl.Trim();
+        _configService.Config.CosmeticsSupabaseAnonKey = CosmeticsSupabaseAnonKey.Trim();
         _configService.Config.DefaultSmpServer.Name = DefaultSmpName;
         _configService.Config.DefaultSmpServer.Ip = DefaultSmpIp;
         _configService.Config.DefaultSmpServer.Port = DefaultSmpPort;
