@@ -1,0 +1,2 @@
+# El wrapper de Gradle es un script de shell: debe conservar LF.
+fabric-mod/gradlew text eol=lf
