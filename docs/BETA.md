@@ -24,6 +24,13 @@ principal y que, si falla, los logs digan exactamente por qué.
 - Java compatible con la versión de Minecraft (el launcher lo detecta).
 - Para cosméticos: Minecraft **1.21.11**, **Fabric Loader 0.20.1** y **Fabric API**.
 
+## Paquete de esta beta
+
+- `publish/win-x64/TVLauncher.exe`: **47.519.006 bytes**, SHA-256
+  `AC7B26FDDBD53AA102F4B8612B53D7BD1927808C2F461771124A1445738FF1BE`.
+- `artifacts/TVLauncher-beta-win-x64.zip`: **54.614.207 bytes**, SHA-256
+  `E73630917589C1FFDE9EAFEB0B6F157046A4065C2FB99E43ACF07E034A47BCEC`.
+
 ## Cómo ejecutar la beta
 
 ### Opción A — ejecutable portable (recomendado si está firmado)

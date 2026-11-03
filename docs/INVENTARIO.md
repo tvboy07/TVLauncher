@@ -283,8 +283,12 @@ Notas:
 - Las cuentas Microsoft se publican y se ven desde cualquier servidor. Las cuentas **offline no
   publican**: solo renderizan sus cosmÃ©ticos en local.
 - El sombrero puede solaparse con un casco colocado en esta beta.
-- Release candidate local: `publish/win-x64/TVLauncher.exe`, **47.506.718 bytes**,
-  SHA-256 `DEA01B4F83D11A5995644F8854C03CCFADD048A0E65B7F87CDF8E90D012361AE`.
+- Release candidate local: `publish/win-x64/TVLauncher.exe`, **47.519.006 bytes**,
+  SHA-256 `AC7B26FDDBD53AA102F4B8612B53D7BD1927808C2F461771124A1445738FF1BE`.
+- Paquete beta: `artifacts/TVLauncher-beta-win-x64.zip`, **54.614.207 bytes**,
+  SHA-256 `E73630917589C1FFDE9EAFEB0B6F157046A4065C2FB99E43ACF07E034A47BCEC`.
+  Incluye `TVLauncher.exe`, `beta-dotnet/` + `Iniciar-TVLauncher.cmd` (workaround de
+  Smart App Control) y `LEEME-BETA.md`.
 
 ---
 
