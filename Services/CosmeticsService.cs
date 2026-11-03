@@ -44,7 +44,7 @@ public class CosmeticsService
         string cosmeticsPath = _configService.GetCosmeticsPath();
         _cosmeticsConfigPath = Path.Combine(cosmeticsPath, "cosmetics_config.json");
         _cosmeticsJarPath = Path.Combine(cosmeticsPath, "tvl-cosmetics.jar");
-        _cosmeticsSyncPath = Path.Combine(cosmeticsPath, "tvl-cosmetics-client.json");
+        _cosmeticsSyncPath = Path.Combine(cosmeticsPath, "tvl-cosmetics.json");
         
         AvailableCosmetics = new List<CosmeticItem>();
         EquippedCosmetics = new List<string>();
@@ -183,8 +183,8 @@ public class CosmeticsService
                 Path.Combine(configPath, "tvl-cosmetics.json"),
                 json);
 
-            // También guardar en cache global para que el mod pueda leerlo
-            // incluso antes de que la instancia tenga su propia copia.
+            // También guardar una copia en la cache global del launcher para
+            // diagnóstico y para reutilizarla si la instancia se recrea.
             Directory.CreateDirectory(Path.GetDirectoryName(_cosmeticsSyncPath)!);
             await File.WriteAllTextAsync(_cosmeticsSyncPath, json);
         }
@@ -314,7 +314,14 @@ public class CosmeticsService
             else
                 await Task.Yield();
 
-            PublishCosmeticsResult result = await _publisher.PublishCurrentAsync(cts.Token);
+            CancellationToken token = cts.Token;
+            PublishCosmeticsResult result = await _publisher.PublishCurrentAsync(token);
+
+            // El publisher convierte la cancelación en Failed; si un cambio
+            // posterior ya reemplazó esta publicación, no la reportamos como error.
+            if (token.IsCancellationRequested)
+                return;
+
             ReportPublishResult(result);
         }
         catch (OperationCanceledException)
@@ -422,11 +429,4 @@ public partial class CosmeticItem : ObservableObject
 public class CosmeticsConfig
 {
     public List<string> EquippedCosmetics { get; set; } = new();
-}
-
-public class CosmeticsSyncData
-{
-    public string Version { get; set; } = "1.0.0";
-    public List<string> EquippedCosmetics { get; set; } = new();
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
