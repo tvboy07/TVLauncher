@@ -107,4 +107,58 @@ public sealed class CosmeticsServiceTests
         Assert.Contains("hat_tvlauncher", service.EquippedCosmetics);
         Assert.Contains("cape_tvlauncher", service.EquippedCosmetics);
     }
+
+    [Fact]
+    public async Task EquipCosmetic_PublishesAfterTheDebounce()
+    {
+        using var dir = new TempDirectory();
+        var config = new ConfigService(dir.Root);
+        var publisher = new FakeCosmeticsPublisher();
+        var service = new CosmeticsService(config, publisher)
+        {
+            PublishDebounce = TimeSpan.Zero
+        };
+
+        service.EquipCosmetic("cape_tvlauncher");
+        await Task.Delay(100);
+
+        Assert.Equal(1, publisher.CallCount);
+    }
+
+    [Fact]
+    public async Task UnequipCosmetic_PublishesAfterTheDebounce()
+    {
+        using var dir = new TempDirectory();
+        var config = new ConfigService(dir.Root);
+        var publisher = new FakeCosmeticsPublisher();
+        var service = new CosmeticsService(config, publisher)
+        {
+            PublishDebounce = TimeSpan.Zero
+        };
+        service.EquippedCosmetics.Add("cape_tvlauncher");
+
+        service.UnequipCosmetic("cape_tvlauncher");
+        await Task.Delay(100);
+
+        Assert.Equal(1, publisher.CallCount);
+    }
+
+    [Fact]
+    public async Task InjectCosmeticsToInstanceAsync_PublishesBeforeCopyingTheMod()
+    {
+        using var dir = new TempDirectory();
+        var config = new ConfigService(dir.Root);
+        var publisher = new FakeCosmeticsPublisher();
+        var service = new CosmeticsService(config, publisher);
+        var instance = new MinecraftInstance
+        {
+            GameDirectory = dir.Combine("instance")
+        };
+
+        await service.InjectCosmeticsToInstanceAsync(instance);
+
+        Assert.Equal(1, publisher.CallCount);
+        Assert.True(File.Exists(
+            Path.Combine(instance.GameDirectory, "mods", "tvl-cosmetics.jar")));
+    }
 }

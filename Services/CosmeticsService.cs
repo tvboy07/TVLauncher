@@ -18,9 +18,17 @@ public class CosmeticsService
     private readonly ConfigService _configService;
     private readonly ICosmeticsPublisher _publisher;
     private readonly SemaphoreSlim _modJarLock = new(1, 1);
+    private readonly object _publishLock = new();
     private readonly string _cosmeticsConfigPath;
     private readonly string _cosmeticsJarPath;
     private readonly string _cosmeticsSyncPath;
+    private CancellationTokenSource? _publishCts;
+
+    /// <summary>
+    /// Espera antes de publicar un cambio de cosméticos. Evita un POST por
+    /// cada clic cuando el jugador equipa y desequipa varias piezas seguidas.
+    /// </summary>
+    internal TimeSpan PublishDebounce { get; set; } = TimeSpan.FromMilliseconds(500);
     
     public List<CosmeticItem> AvailableCosmetics { get; private set; }
     public List<string> EquippedCosmetics { get; private set; }
@@ -122,7 +130,8 @@ public class CosmeticsService
                 return;
 
             // El mod debe encontrar su configuración ya escrita cuando arranque:
-            // se sincroniza antes de copiar el jar a la instancia.
+            // publicamos el estado actual y lo sincronizamos antes de copiar el jar.
+            await PublishBeforeLaunchAsync();
             await SyncCosmeticsToInstanceAsync(instance);
 
             if (!await EnsureModJarAsync())
@@ -196,6 +205,7 @@ public class CosmeticsService
                 CosmeticEquipped?.Invoke(this, cosmetic);
             }
             SaveCosmeticsConfig();
+            SchedulePublish();
         }
     }
 
@@ -205,6 +215,7 @@ public class CosmeticsService
         {
             EquippedCosmetics.Remove(cosmeticId);
             SaveCosmeticsConfig();
+            SchedulePublish();
         }
     }
 
@@ -278,6 +289,86 @@ public class CosmeticsService
         catch (Exception ex)
         {
             Console.WriteLine($"Error al guardar config de cosméticos: {ex.Message}");
+        }
+    }
+
+    private void SchedulePublish()
+    {
+        var cts = new CancellationTokenSource();
+        lock (_publishLock)
+        {
+            _publishCts?.Cancel();
+            _publishCts?.Dispose();
+            _publishCts = cts;
+        }
+
+        _ = PublishAfterDebounceAsync(cts);
+    }
+
+    private async Task PublishAfterDebounceAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            if (PublishDebounce > TimeSpan.Zero)
+                await Task.Delay(PublishDebounce, cts.Token);
+            else
+                await Task.Yield();
+
+            PublishCosmeticsResult result = await _publisher.PublishCurrentAsync(cts.Token);
+            ReportPublishResult(result);
+        }
+        catch (OperationCanceledException)
+        {
+            // Un cambio posterior reemplazó esta publicación; no es un error.
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al publicar cosméticos: {ex.Message}");
+        }
+        finally
+        {
+            lock (_publishLock)
+            {
+                if (ReferenceEquals(_publishCts, cts))
+                    _publishCts = null;
+            }
+
+            cts.Dispose();
+        }
+    }
+
+    private async Task PublishBeforeLaunchAsync()
+    {
+        try
+        {
+            PublishCosmeticsResult result = await _publisher.PublishCurrentAsync();
+            ReportPublishResult(result);
+        }
+        catch (Exception ex)
+        {
+            // Un fallo de red nunca debe impedir que el juego arranque.
+            Console.WriteLine($"Error al publicar cosméticos antes de lanzar: {ex.Message}");
+        }
+    }
+
+    private void ReportPublishResult(PublishCosmeticsResult result)
+    {
+        switch (result.Status)
+        {
+            case PublishCosmeticsStatus.Published:
+                Console.WriteLine("Cosméticos publicados");
+                break;
+
+            case PublishCosmeticsStatus.Failed:
+                StatusChanged?.Invoke(
+                    this,
+                    "No se pudieron publicar los cosméticos; el juego continuará");
+                Console.WriteLine($"No se pudieron publicar los cosméticos: {result.Error}");
+                break;
+
+            default:
+                Console.WriteLine("Publicación de cosméticos omitida");
+                break;
         }
     }
 
