@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -120,6 +121,10 @@ public class CosmeticsService
             if (!_configService.Config.EnableCosmetics || !_configService.Config.AutoInjectCosmetics)
                 return;
 
+            // El mod debe encontrar su configuración ya escrita cuando arranque:
+            // se sincroniza antes de copiar el jar a la instancia.
+            await SyncCosmeticsToInstanceAsync(instance);
+
             if (!await EnsureModJarAsync())
             {
                 StatusChanged?.Invoke(this, "No se pudo preparar el mod de cosméticos");
@@ -138,9 +143,6 @@ public class CosmeticsService
                 File.Copy(_cosmeticsJarPath, targetPath, true);
                 StatusChanged?.Invoke(this, "Cosméticos inyectados en la instancia");
             }
-            
-            // Sincronización JSON con el mod cliente (Opción C)
-            await SyncCosmeticsToInstanceAsync(instance);
         }
         catch (Exception ex)
         {
@@ -153,25 +155,28 @@ public class CosmeticsService
     {
         try
         {
-            if (!_configService.Config.EnableCosmetics)
-                return;
-
             string configPath = Path.Combine(instance.GameDirectory, "config");
             Directory.CreateDirectory(configPath);
-            
-            string syncFilePath = Path.Combine(configPath, "tvl-cosmetics-client.json");
-            
-            var syncData = new CosmeticsSyncData
+
+            var modConfig = new CosmeticModConfig
             {
-                Version = "1.0.0",
-                EquippedCosmetics = new List<string>(EquippedCosmetics),
-                Timestamp = DateTime.UtcNow
+                SchemaVersion = 1,
+                Enabled = _configService.Config.EnableCosmetics,
+                SupabaseUrl = _configService.Config.CosmeticsSupabaseUrl,
+                SupabaseAnonKey = _configService.Config.CosmeticsSupabaseAnonKey,
+                LocalCapeId = _configService.Config.EquippedCapeId,
+                LocalHatId = _configService.Config.EquippedHatId,
+                PollSeconds = 30
             };
-            
-            string json = JsonConvert.SerializeObject(syncData, Formatting.Indented);
-            await File.WriteAllTextAsync(syncFilePath, json);
-            
-            // También guardar en cache global
+
+            string json = JsonConvert.SerializeObject(modConfig, Formatting.Indented);
+            await File.WriteAllTextAsync(
+                Path.Combine(configPath, "tvl-cosmetics.json"),
+                json);
+
+            // También guardar en cache global para que el mod pueda leerlo
+            // incluso antes de que la instancia tenga su propia copia.
+            Directory.CreateDirectory(Path.GetDirectoryName(_cosmeticsSyncPath)!);
             await File.WriteAllTextAsync(_cosmeticsSyncPath, json);
         }
         catch (Exception ex)
@@ -205,24 +210,57 @@ public class CosmeticsService
 
     public void LoadCosmeticsConfig()
     {
+        var loaded = new List<string>();
         try
         {
             if (File.Exists(_cosmeticsConfigPath))
             {
                 string json = File.ReadAllText(_cosmeticsConfigPath);
                 var config = JsonConvert.DeserializeObject<CosmeticsConfig>(json);
-                
+
                 if (config != null)
                 {
-                    EquippedCosmetics = config.EquippedCosmetics ?? new List<string>();
+                    loaded = config.EquippedCosmetics ?? new List<string>();
                 }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error al cargar config de cosméticos: {ex.Message}");
-            EquippedCosmetics = new List<string>();
+            loaded = new List<string>();
         }
+
+        // Limpiar IDs de una versión anterior del catálogo y añadir lo que el
+        // jugador tenga equipado en AppConfig. Así el armario, el JSON del mod
+        // y la publicación a Supabase parten siempre de la misma lista.
+        var cleaned = new List<string>();
+        foreach (string id in loaded)
+        {
+            if (string.IsNullOrWhiteSpace(id) || IsObsoleteCosmeticId(id) || cleaned.Contains(id))
+                continue;
+
+            cleaned.Add(id);
+        }
+
+        AddIfMissing(cleaned, _configService.Config.EquippedCapeId);
+        AddIfMissing(cleaned, _configService.Config.EquippedHatId);
+
+        bool changed = !loaded.SequenceEqual(cleaned);
+        EquippedCosmetics = cleaned;
+
+        if (changed)
+            SaveCosmeticsConfig();
+    }
+
+    private static bool IsObsoleteCosmeticId(string id)
+    {
+        return id == "cape_1" || id == "hat_1";
+    }
+
+    private static void AddIfMissing(List<string> ids, string? id)
+    {
+        if (!string.IsNullOrWhiteSpace(id) && !ids.Contains(id))
+            ids.Add(id);
     }
 
     public void SaveCosmeticsConfig()
