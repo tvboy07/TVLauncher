@@ -1,12 +1,16 @@
 package net.tvlauncher.cosmetics;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -20,6 +24,12 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.entity.PlayerEntityRenderer;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.texture.NativeImageBackedTexture;
+import net.minecraft.client.texture.ResourceTexture;
+import net.minecraft.client.texture.TextureContents;
+import net.minecraft.entity.player.PlayerSkinType;
+import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +44,8 @@ import org.slf4j.LoggerFactory;
 public final class TvCosmeticsClient implements ClientModInitializer {
     public static final String MOD_ID = "tvl-cosmetics";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    public static final Identifier LOCAL_SKIN_TEXTURE =
+        Identifier.of(MOD_ID, "textures/local_skin");
 
     private static final Path CONFIG_PATH =
         FabricLoader.getInstance().getConfigDir().resolve("tvl-cosmetics.json");
@@ -75,10 +87,66 @@ public final class TvCosmeticsClient implements ClientModInitializer {
 
     private static void registerTextures() {
         ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
-            client.getTextureManager().registerTexture(CosmeticRenderLayers.CAPE_TEXTURE);
-            client.getTextureManager().registerTexture(CosmeticRenderLayers.HAT_TEXTURE);
+            registerTexture(client, CosmeticRenderLayers.CAPE_TEXTURE);
+            registerTexture(client, CosmeticRenderLayers.HAT_TEXTURE);
+            applyLocalSkin(client);
         });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> REFRESH_EXECUTOR.shutdownNow());
+    }
+
+    /**
+     * Carga la textura antes de registrarla.
+     *
+     * <p>{@link net.minecraft.client.texture.TextureManager#registerTexture(Identifier)}
+     * solo guarda un {@link ResourceTexture} sin cargarlo: las texturas vanilla se
+     * cargan durante la recarga de recursos, pero este mod registra las suyas
+     * después de esa recarga. Sin el {@code reload} explícito, la textura queda
+     * con {@code glTextureView == null} y el primer render (por ejemplo al pulsar
+     * F5) revienta al resolverla, sobre todo si ImmediatelyFast agrupa el dibujo.
+     */
+    private static void registerTexture(MinecraftClient client, Identifier id) {
+        ResourceTexture texture = new ResourceTexture(id);
+        try {
+            texture.reload(TextureContents.load(client.getResourceManager(), id));
+        } catch (IOException e) {
+            LOGGER.warn("No se pudo cargar la textura {}; se usará la textura faltante", id, e);
+            texture.reload(TextureContents.createMissing());
+        }
+        client.getTextureManager().registerTexture(id, texture);
+    }
+
+    /**
+     * Carga la skin local que el launcher copia a config/tvl-cosmetics-skin.png.
+     * El launcher ya la normaliza a 64x64, así que aquí no hay que remapear.
+     */
+    private static void applyLocalSkin(MinecraftClient client) {
+        CosmeticsConfig current = config;
+        String file = current.localSkinFile();
+        if (!current.enabled() || file == null || file.isBlank()) {
+            LocalSkinOverride.clear();
+            return;
+        }
+
+        Path path = FabricLoader.getInstance().getConfigDir().resolve(file);
+        try (InputStream input = Files.newInputStream(path)) {
+            NativeImage image = NativeImage.read(input);
+            NativeImageBackedTexture texture =
+                new NativeImageBackedTexture(() -> "tvl-local-skin", image);
+            client.getTextureManager().registerTexture(LOCAL_SKIN_TEXTURE, texture);
+
+            PlayerSkinType model = null;
+            if ("slim".equalsIgnoreCase(current.localSkinModel())) {
+                model = PlayerSkinType.SLIM;
+            } else if ("classic".equalsIgnoreCase(current.localSkinModel())
+                    || "wide".equalsIgnoreCase(current.localSkinModel())) {
+                model = PlayerSkinType.WIDE;
+            }
+            LocalSkinOverride.set(LOCAL_SKIN_TEXTURE, model);
+            LOGGER.info("Local skin loaded from {}", path);
+        } catch (IOException | RuntimeException e) {
+            LOGGER.warn("Could not load local skin {}", path, e);
+            LocalSkinOverride.clear();
+        }
     }
 
     private static void registerTickHandler() {
@@ -93,6 +161,7 @@ public final class TvCosmeticsClient implements ClientModInitializer {
                 hadWorld = false;
                 PlayerIdentityMap.clear();
                 CosmeticRenderState.setLocalUuid(null);
+                CosmeticRenderState.setRenderFlags(Map.of());
                 repository.clear();
                 lastUuids = Set.of();
             }
@@ -106,13 +175,27 @@ public final class TvCosmeticsClient implements ClientModInitializer {
 
         PlayerIdentityMap.clear();
         Set<UUID> uuids = new HashSet<>();
-        for (AbstractClientPlayerEntity player : client.world.getPlayers()) {
-            PlayerIdentityMap.put(player.getId(), player.getUuid());
-            uuids.add(player.getUuid());
-        }
-        CosmeticRenderState.setLocalUuid(client.player == null ? null : client.player.getUuid());
+        UUID localUuid = client.player == null ? null : client.player.getUuid();
+        CosmeticRenderState.setLocalUuid(localUuid);
 
         CosmeticsConfig currentConfig = config;
+        CosmeticsRepository currentRepository = repository;
+        Map<Integer, CosmeticRenderState.RenderFlags> flags = new HashMap<>();
+        for (AbstractClientPlayerEntity player : client.world.getPlayers()) {
+            int entityId = player.getId();
+            UUID uuid = player.getUuid();
+            PlayerIdentityMap.put(entityId, uuid);
+            uuids.add(uuid);
+
+            boolean local = uuid.equals(localUuid);
+            Optional<ResolvedCosmetics> resolved = CosmeticRenderResolver.resolve(
+                uuid, local, currentConfig, currentRepository);
+            flags.put(entityId, new CosmeticRenderState.RenderFlags(
+                local,
+                resolved.map(ResolvedCosmetics::hasCape).orElse(false),
+                resolved.map(ResolvedCosmetics::hasHat).orElse(false)));
+        }
+        CosmeticRenderState.setRenderFlags(flags);
         boolean newPlayers = !uuids.equals(lastUuids);
         lastUuids = uuids;
 
@@ -139,6 +222,7 @@ public final class TvCosmeticsClient implements ClientModInitializer {
         configModifiedAt = modifiedAt;
         repository = createRepository(loaded);
         CosmeticRenderState.initialize(repository, loaded);
+        applyLocalSkin(MinecraftClient.getInstance());
         lastUuids = Set.of();
         LOGGER.info(
             "Loaded {} (enabled={}, backend={})",

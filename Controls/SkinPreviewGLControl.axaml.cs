@@ -421,6 +421,8 @@ public partial class SkinPreviewGLControl : OpenGlControlBase
         // La cara exterior muestrea la ventana UV 3..13 (tx=2 + d=1), que es donde
         // GenerateTvLauncherCape pinta el marco y el logo. Con tx=0 la ventana era 1..11
         // y el diseño aparecía 2 px corrido a la derecha.
+        // El visor usa su propia textura (CreateViewerCapePng), centrada en la
+        // ventana x 3..13 de esta geometría.
         const int capeUvTx = 2;
         s = v.Count / 5;
         AddBox(v, -5, -16, 0, 10, 16, 1, capeUvTx, 0);

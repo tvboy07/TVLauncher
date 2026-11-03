@@ -4,68 +4,91 @@
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/)
 [![Avalonia](https://img.shields.io/badge/Avalonia-UI-blue.svg)](https://avaloniaui.net/)
 
-TVLauncher es un launcher ligero, moderno y de código abierto para Minecraft, creado con **C#**, **.NET 8.0** y **Avalonia UI**. Diseñado para ser rápido, con bajo consumo de recursos y con una experiencia limpia y minimalista.
+TVLauncher es un launcher ligero y de código abierto para Minecraft, creado con **C#**, **.NET 8.0** y **Avalonia UI**. El arranque es **propio**: controla el manifiesto de versiones, el classpath, los argumentos JVM, los nativos, los assets y el diagnóstico de fallos sin delegar el lanzamiento en CmlLib.
+
+> Estado: **beta**. Consultá [`docs/BETA.md`](docs/BETA.md) para limitaciones conocidas y cómo probarla.
 
 ## Características
 
-- **Interfaz moderna con Avalonia UI** - Multiplataforma y fluida.
-- **Gestión de instancias** - Crea, edita y ejecuta múltiples instancias de Minecraft aisladas.
-- **Autenticación dual** - Soporta cuentas offline y autenticación con Microsoft (OAuth2).
-- **Soporte para modloaders** - Integración con Forge, Fabric y NeoForge vía [CmlLib.Core](https://github.com/CmlLib/CmlLib.Core).
-- **Visor 3D de Skins** - Previsualización en tiempo real del skin con modelo completo (cabeza, cuerpo, brazos, piernas), capa exterior/hat y soporte para transparencias.
-- **Sistema de cosméticos** - Capa y sombrero exclusivos de TVLauncher, inyectados como mod Fabric embebido y sincronizados entre jugadores mediante Supabase.
-- **Buscador de mods con Modrinth** - Busca, filtra y descarga mods directamente a tu instancia.
-- **Asignación de RAM** - Control total sobre la memoria asignada por instancia.
-- **Inyección automática de servidor SMP** - Añade automáticamente servidores a `servers.dat`.
-- **Asistente de configuración** - Wizard de primera ejecución para configurar módulos opcionales.
-- **Ligero y optimizado** - Pensado para consumir menos recursos.
+- **Interfaz moderna** con Avalonia UI y shell oscuro.
+- **Gestión de instancias**: crear, editar y ejecutar instancias aisladas.
+- **Autenticación dual**: cuentas offline y Microsoft (OAuth 2.0 con PKCE, fallback a device code).
+- **Modloaders**: Forge, NeoForge y Fabric con resolución de `inheritsFrom`, librerías, nativos y jar del perfil.
+- **Java**: detección, validación y selección automática de JRE/JDK por versión requerida.
+- **Diagnóstico de arranque**: `tvlauncher.log`, `minecraft-console.log` y crash reports.
+- **Visor 3D de skins** con capa exterior, sombrero, transparencias, animación y modelo classic/slim.
+- **Cosméticos in-game** para Fabric 1.21.11: capa y sombrero TVLauncher, skin local y subida de skin a Mojang para cuentas premium.
+- **Buscador de mods (Modrinth)** con descarga a `{instancia}/mods`, cancelación y verificación SHA-512.
+- **Asignación de RAM** por instancia y optimización de memoria opcional.
+- **Servidor SMP** inyectado en `servers.dat`.
+- **Wizard de primera ejecución**.
 
 ## Tecnologías
 
 | Tecnología | Uso |
-|------------|-----|
-| [C# / .NET 8.0](https://dotnet.microsoft.com/) | Núcleo de la aplicación |
-| [Avalonia UI](https://avaloniaui.net/) | Interfaz gráfica multiplataforma |
-| [CmlLib.Core](https://github.com/CmlLib/CmlLib.Core) | Lanzamiento de Minecraft y gestión de versiones |
-| [Silk.NET](https://github.com/dotnet/Silk.NET) | Renderizado OpenGL para el visor 3D |
-| [SkiaSharp](https://github.com/mono/SkiaSharp) | Decodificación y procesamiento de texturas PNG |
-| [CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/) | Arquitectura MVVM |
+|---|---|
+| C# / .NET 8.0 | Núcleo del launcher |
+| Avalonia UI 11.1.3 | Interfaz multiplataforma (MVVM con CommunityToolkit.Mvvm) |
+| Microsoft.Extensions.DependencyInjection | Composición de servicios |
+| Silk.NET.OpenGL + SkiaSharp | Visor 3D y generación de texturas |
+| Newtonsoft.Json | Metadata de versiones y configuración |
+| CmlLib.Core.Auth | Solo modelos de sesión heredados; el arranque es propio |
+| Fabric Loader / Fabric API | Mod cliente `tvl-cosmetics` para Minecraft 1.21.11 |
 
 ## Requisitos
 
-- .NET 8.0 SDK o Runtime
-- Windows 10/11, Linux o macOS (soportado por Avalonia)
-- OpenGL 2.1+ / OpenGL ES 2.0+ (compatible con ANGLE)
+- Windows 10/11 (el paquete beta está pensado para Windows x64).
+- .NET 8.0 SDK para desarrollo; .NET 8.0 Desktop Runtime para el paquete portable.
+- Java compatible con la versión de Minecraft (el launcher detecta instalaciones).
+- OpenGL 2.1+ / OpenGL ES 2.0+ para el visor.
+- Para cosméticos in-game: Minecraft 1.21.11 con Fabric Loader y Fabric API.
 
-## Instalación y desarrollo
+## Compilar y ejecutar
 
-```bash
-# Clonar el repositorio
-git clone https://github.com/tvboy07/TVLauncher.git
-cd TVLauncher
-
-# Restaurar dependencias
+```powershell
 dotnet restore
-
-# Compilar
-dotnet build
-
-# Ejecutar
-dotnet run
+dotnet build TVLauncher.csproj
+dotnet run --project TVLauncher.csproj
 ```
 
-## Estructura del proyecto
+Tests:
 
+```powershell
+dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj
 ```
+
+El mod Fabric se compila aparte:
+
+```powershell
+cd fabric-mod
+$env:JAVA_HOME = "C:\ruta\a\jdk-21"   # Fabric Loom 1.19.3 requiere Java 25 para construir
+.\gradlew.bat build
+```
+
+El jar resultante se copia a `Resources/tvl-cosmetics.jar` y se embebe en el `.exe`.
+
+## Estructura
+
+```text
 TVLauncher/
-├── Assets/        # Recursos gráficos
-├── Controls/      # Controles personalizados (SkinPreviewGLControl)
-├── Models/        # Modelos de datos
-├── Services/      # Lógica de negocio (Auth, Instance, Minecraft, Skin, etc.)
-├── ViewModels/    # ViewModels MVVM
-├── Views/         # Ventanas y vistas Avalonia XAML
-└── App.axaml.cs   # Punto de entrada y configuración DI
+├── Assets/                  Recursos gráficos
+├── Controls/                Visor 3D OpenGL
+├── Helpers/                 Argumentos, reglas, enmascarado de secretos
+├── Models/                  Config, instancias, cuentas, metadata
+├── Services/                Lanzamiento, Java, auth, cosméticos, Modrinth
+├── ViewModels/              MVVM
+├── Views/                   Ventanas y vistas Avalonia
+├── fabric-mod/              Mod cliente Fabric 1.21.11
+├── tests/TVLauncher.Tests/  Suite xUnit
+└── docs/                    Roadmap, inventario y guía de beta
 ```
+
+## Documentación
+
+- [`docs/ROADMAP.md`](docs/ROADMAP.md): visión, fases y estado.
+- [`docs/INVENTARIO.md`](docs/INVENTARIO.md): inventario técnico detallado.
+- [`docs/BETA.md`](docs/BETA.md): limitaciones y pruebas de la beta.
+- [`docs/SUPABASE_SETUP.md`](docs/SUPABASE_SETUP.md): backend opcional de cosméticos.
 
 ## Licencia
 
@@ -73,11 +96,12 @@ Este proyecto está licenciado bajo la [Licencia MIT](LICENSE).
 
 ## Créditos
 
-- [CmlLib.Core](https://github.com/CmlLib/CmlLib.Core) por la API de lanzamiento de Minecraft
-- [Mojang API](https://wiki.vg/Mojang_API) por los datos de perfiles y skins
-- [Crafatar](https://crafatar.com/) como fallback para skins
-- [Modrinth API](https://docs.modrinth.com/api-spec/) para el buscador de mods
+- [Mojang API](https://wiki.vg/Mojang_API) por perfiles, skins y sesiones.
+- [Crafatar](https://crafatar.com/) como fallback de skins.
+- [Modrinth API](https://docs.modrinth.com/api-spec/) para el buscador de mods.
+- [CmlLib.Core.Auth](https://github.com/CmlLib/CmlLib.Core) por los modelos de sesión heredados.
+- [Fabric](https://fabricmc.net/) por el ecosistema del mod cliente.
 
 ---
 
-**Hecho con ❤️ por el equipo de TVLauncher**
+Hecho con ❤️ por el equipo de TVLauncher.

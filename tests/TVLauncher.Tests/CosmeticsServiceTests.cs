@@ -144,6 +144,66 @@ public sealed class CosmeticsServiceTests
     }
 
     [Fact]
+    public async Task SyncCosmeticsToInstanceAsync_CopiesTheEquippedSkin()
+    {
+        using var dir = new TempDirectory();
+        var config = new ConfigService(dir.Root);
+        string equipped = dir.Combine("equipped.png");
+        File.WriteAllBytes(equipped, SkinImageNormalizerTests.CreatePng(64, 64, SkiaSharp.SKColors.Blue));
+        config.Config.EquippedSkinPath = equipped;
+        var service = new CosmeticsService(config, new FakeCosmeticsPublisher());
+        var instance = new MinecraftInstance { GameDirectory = dir.Combine("instance") };
+
+        await service.SyncCosmeticsToInstanceAsync(instance);
+
+        string skinPath = Path.Combine(instance.GameDirectory, "config", "tvl-cosmetics-skin.png");
+        Assert.True(File.Exists(skinPath));
+        using var written = SkiaSharp.SKBitmap.Decode(skinPath);
+        Assert.NotNull(written);
+        Assert.Equal(64, written!.Width);
+        string json = await File.ReadAllTextAsync(
+            Path.Combine(instance.GameDirectory, "config", "tvl-cosmetics.json"));
+        Assert.Contains("\"local_skin_file\": \"tvl-cosmetics-skin.png\"", json);
+    }
+
+    [Fact]
+    public async Task SyncCosmeticsToInstanceAsync_OmitsSkinWhenNoneIsEquipped()
+    {
+        using var dir = new TempDirectory();
+        var config = new ConfigService(dir.Root);
+        config.Config.EquippedSkinPath = null;
+        var service = new CosmeticsService(config, new FakeCosmeticsPublisher());
+        var instance = new MinecraftInstance { GameDirectory = dir.Combine("instance") };
+
+        await service.SyncCosmeticsToInstanceAsync(instance);
+
+        Assert.False(File.Exists(
+            Path.Combine(instance.GameDirectory, "config", "tvl-cosmetics-skin.png")));
+        string json = await File.ReadAllTextAsync(
+            Path.Combine(instance.GameDirectory, "config", "tvl-cosmetics.json"));
+        Assert.Contains("\"local_skin_file\": null", json);
+    }
+
+    [Fact]
+    public async Task InjectCosmeticsToInstanceAsync_DisablesTheModWhenCosmeticsAreOff()
+    {
+        using var dir = new TempDirectory();
+        var config = new ConfigService(dir.Root);
+        config.Config.EnableCosmetics = false;
+        config.Config.AutoInjectCosmetics = true;
+        var service = new CosmeticsService(config, new FakeCosmeticsPublisher());
+        var instance = new MinecraftInstance { GameDirectory = dir.Combine("instance") };
+
+        await service.InjectCosmeticsToInstanceAsync(instance);
+
+        string json = await File.ReadAllTextAsync(
+            Path.Combine(instance.GameDirectory, "config", "tvl-cosmetics.json"));
+        Assert.Contains("\"enabled\": false", json);
+        Assert.False(File.Exists(
+            Path.Combine(instance.GameDirectory, "mods", "tvl-cosmetics.jar")));
+    }
+
+    [Fact]
     public async Task InjectCosmeticsToInstanceAsync_PublishesBeforeCopyingTheMod()
     {
         using var dir = new TempDirectory();

@@ -17,6 +17,14 @@ public sealed class CosmeticTextureFactoryTests
     }
 
     [Fact]
+    public void ViewerCapePng_Is64x32()
+    {
+        byte[] png = CosmeticTextureFactory.CreateViewerCapePng();
+        Assert.Equal(64u, ReadBigEndianUInt32(png, 16));
+        Assert.Equal(32u, ReadBigEndianUInt32(png, 20));
+    }
+
+    [Fact]
     public void HatPng_Is64x64()
     {
         byte[] png = CosmeticTextureFactory.CreateHatPng();

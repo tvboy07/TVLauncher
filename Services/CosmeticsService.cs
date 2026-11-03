@@ -126,13 +126,19 @@ public class CosmeticsService
     {
         try
         {
-            if (!_configService.Config.EnableCosmetics || !_configService.Config.AutoInjectCosmetics)
+            if (!_configService.Config.AutoInjectCosmetics)
                 return;
 
-            // El mod debe encontrar su configuración ya escrita cuando arranque:
-            // publicamos el estado actual y lo sincronizamos antes de copiar el jar.
-            await PublishBeforeLaunchAsync();
+            // El mod debe encontrar su configuración ya escrita cuando arranque.
+            // Si los cosméticos están desactivados, igualmente escribimos
+            // enabled=false para que el jar que ya esté en la instancia deje de
+            // renderizar (el checkbox debe ser un interruptor real).
+            if (_configService.Config.EnableCosmetics)
+                await PublishBeforeLaunchAsync();
             await SyncCosmeticsToInstanceAsync(instance);
+
+            if (!_configService.Config.EnableCosmetics)
+                return;
 
             if (!await EnsureModJarAsync())
             {
@@ -167,6 +173,8 @@ public class CosmeticsService
             string configPath = Path.Combine(instance.GameDirectory, "config");
             Directory.CreateDirectory(configPath);
 
+            string? localSkinFile = await CopyEquippedSkinAsync(configPath);
+
             var modConfig = new CosmeticModConfig
             {
                 SchemaVersion = 1,
@@ -175,6 +183,8 @@ public class CosmeticsService
                 SupabaseAnonKey = _configService.Config.CosmeticsSupabaseAnonKey,
                 LocalCapeId = _configService.Config.EquippedCapeId,
                 LocalHatId = _configService.Config.EquippedHatId,
+                LocalSkinFile = localSkinFile,
+                LocalSkinModel = localSkinFile == null ? null : "classic",
                 PollSeconds = 30
             };
 
@@ -191,6 +201,40 @@ public class CosmeticsService
         catch (Exception ex)
         {
             Console.WriteLine($"Error al sincronizar cosméticos: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Copia la skin equipada a la instancia en el formato 64x64 que espera el
+    /// mod. Devuelve el nombre relativo que se escribe en el JSON, o null si no
+    /// hay skin o no se pudo normalizar.
+    /// </summary>
+    private async Task<string?> CopyEquippedSkinAsync(string configPath)
+    {
+        const string fileName = "tvl-cosmetics-skin.png";
+        string targetPath = Path.Combine(configPath, fileName);
+        string? sourcePath = _configService.Config.EquippedSkinPath;
+
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+        {
+            if (File.Exists(targetPath))
+                File.Delete(targetPath);
+            return null;
+        }
+
+        try
+        {
+            byte[] normalized = SkinImageNormalizer.Normalize(
+                await File.ReadAllBytesAsync(sourcePath));
+            await File.WriteAllBytesAsync(targetPath, normalized);
+            return fileName;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"No se pudo preparar la skin local: {ex.Message}");
+            if (File.Exists(targetPath))
+                File.Delete(targetPath);
+            return null;
         }
     }
 

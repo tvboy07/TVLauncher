@@ -95,6 +95,8 @@ public class MinecraftService
 
         try
         {
+            var launchTimer = Stopwatch.StartNew();
+            Log.Info($"[Launch] Inicio de lanzamiento: {instance.Name} ({instance.Version})");
             _stopRequested = false;
 
             if (_configService.Config.AutoOptimizeMemory)
@@ -148,6 +150,7 @@ public class MinecraftService
             // 1. Archivos del juego (version.json, client.jar, librerías, natives, assets)
             StatusChanged?.Invoke(this, "Preparando archivos del juego...");
             var installation = await _gameFilesService.EnsureVersionAsync(versionToLaunch, cancellationToken);
+            Log.Info($"[Launch] Archivos listos en {launchTimer.ElapsedMilliseconds} ms");
 
             // 2. Java compatible
             int requiredJava = installation.RequiredJavaMajor > 0
@@ -157,6 +160,7 @@ public class MinecraftService
             StatusChanged?.Invoke(this, $"Verificando Java {requiredJava}...");
             string? preferredJava = string.IsNullOrWhiteSpace(instance.JavaPath) ? null : instance.JavaPath;
             var java = await _javaService.ResolveAsync(preferredJava, requiredJava, cancellationToken);
+            Log.Info($"[Launch] Java listo en {launchTimer.ElapsedMilliseconds} ms");
 
             StatusChanged?.Invoke(this, $"Java seleccionado: {java.Version} ({java.Path})");
 
@@ -214,6 +218,7 @@ public class MinecraftService
             StatusChanged?.Invoke(this, $"Iniciando Minecraft {instance.Version}...");
             if (!process.Start())
                 throw new InvalidOperationException("No se pudo iniciar el proceso de Java.");
+            Log.Info($"[Launch] Proceso Java iniciado en {launchTimer.ElapsedMilliseconds} ms");
 
             lock (_processLock)
             {

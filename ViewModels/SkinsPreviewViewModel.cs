@@ -17,6 +17,7 @@ public partial class SkinsPreviewViewModel : ViewModelBase
     private readonly AuthService _authService;
     private readonly SkinService _skinService;
     private readonly ConfigService _configService;
+    private readonly ISkinUploader _skinUploader;
     private readonly string _skinsDir = string.Empty;
 
     [ObservableProperty]
@@ -95,12 +96,18 @@ public partial class SkinsPreviewViewModel : ViewModelBase
     public event EventHandler<CosmeticItem?>? WingsEquipped;
     public event EventHandler? CloseRequested;
 
-    public SkinsPreviewViewModel(CosmeticsService cosmeticsService, AuthService authService, SkinService skinService, ConfigService configService)
+    public SkinsPreviewViewModel(
+        CosmeticsService cosmeticsService,
+        AuthService authService,
+        SkinService skinService,
+        ConfigService configService,
+        ISkinUploader skinUploader)
     {
         _cosmeticsService = cosmeticsService;
         _authService = authService;
         _skinService = skinService;
         _configService = configService;
+        _skinUploader = skinUploader;
         _skinsDir = Path.Combine(_configService.GetCachePath(), "library");
         Directory.CreateDirectory(_skinsDir);
         
@@ -387,6 +394,7 @@ public partial class SkinsPreviewViewModel : ViewModelBase
             ApplyCape(null);
             SaveEquippedSkinState(data, entry.Name);
             StatusMessage = $"Skin «{entry.Name}» equipada desde Mis Skins";
+            await UploadEquippedSkinAsync(path);
         }
         catch (Exception ex)
         {
@@ -460,7 +468,7 @@ public partial class SkinsPreviewViewModel : ViewModelBase
             case "cape":
                 if (cosmetic.Id == "cape_tvlauncher")
                 {
-                    var capeBytes = CosmeticTextureFactory.CreateCapePng();
+                    var capeBytes = CosmeticTextureFactory.CreateViewerCapePng();
                     ApplyCape(capeBytes);
                     _configService.Config.EquippedCapeId = "cape_tvlauncher";
                     _configService.SaveConfig();
@@ -566,6 +574,43 @@ public partial class SkinsPreviewViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Las cuentas premium suben la skin a Mojang (visible para todos). Las
+    /// offline solo la reciben a través del mod local; el launcher se encarga de
+    /// copiarla a la instancia en el próximo lanzamiento.
+    /// </summary>
+    private async Task UploadEquippedSkinAsync(string skinPath)
+    {
+        var account = _authService.ActiveAccount;
+        if (account == null)
+        {
+            StatusMessage += " · no hay cuenta activa";
+            return;
+        }
+
+        if (account.Type != AccountType.Microsoft)
+        {
+            StatusMessage += " · se aplicará en el cliente (cuenta offline)";
+            return;
+        }
+
+        try
+        {
+            SkinUploadResult result = await _skinUploader.UploadAsync(account, skinPath, IsSlim);
+            StatusMessage += result.Status switch
+            {
+                SkinUploadStatus.Uploaded => " · aplicada a tu cuenta de Minecraft",
+                SkinUploadStatus.Failed => $" · no se pudo subir a Mojang: {result.Error}",
+                _ => " · aplicada solo en el cliente"
+            };
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[Armario] Error subiendo la skin a Mojang: {ex.Message}");
+            StatusMessage += " · se aplicará en el cliente";
+        }
+    }
+
     private void SaveEquippedSkinState(byte[] skinData, string username)
     {
         try
@@ -622,7 +667,7 @@ public partial class SkinsPreviewViewModel : ViewModelBase
             // 2) Capa equipada
             if (_configService.Config.EquippedCapeId == "cape_tvlauncher")
             {
-                ApplyCape(CosmeticTextureFactory.CreateCapePng());
+                ApplyCape(CosmeticTextureFactory.CreateViewerCapePng());
             }
             else if (string.IsNullOrWhiteSpace(_configService.Config.EquippedCapeId)
                      && CurrentSkin?.CapeTexture != null)

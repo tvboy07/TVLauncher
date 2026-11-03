@@ -22,6 +22,8 @@ public record CosmeticsConfig(
     String supabaseAnonKey,
     String localCapeId,
     String localHatId,
+    String localSkinFile,
+    String localSkinModel,
     int pollSeconds) {
 
     public static final int SCHEMA_VERSION = 1;
@@ -29,9 +31,23 @@ public record CosmeticsConfig(
     public static final int MIN_POLL_SECONDS = 5;
     public static final int MAX_POLL_SECONDS = 300;
 
+    /** Constructor de compatibilidad para el contrato anterior (sin skin). */
+    public CosmeticsConfig(
+            int schemaVersion,
+            boolean enabled,
+            String supabaseUrl,
+            String supabaseAnonKey,
+            String localCapeId,
+            String localHatId,
+            int pollSeconds) {
+        this(schemaVersion, enabled, supabaseUrl, supabaseAnonKey,
+            localCapeId, localHatId, null, null, pollSeconds);
+    }
+
     public static CosmeticsConfig disabled() {
         return new CosmeticsConfig(
-            SCHEMA_VERSION, false, "", "", null, null, DEFAULT_POLL_SECONDS);
+            SCHEMA_VERSION, false, "", "", null, null, null, null,
+            DEFAULT_POLL_SECONDS);
     }
 
     public static CosmeticsConfig load(Path path) {
@@ -54,6 +70,8 @@ public record CosmeticsConfig(
                 readString(json, "supabase_anon_key", ""),
                 readNullableString(json, "local_cape_id"),
                 readNullableString(json, "local_hat_id"),
+                readNullableString(json, "local_skin_file"),
+                readNullableString(json, "local_skin_model"),
                 clampPollSeconds(readInt(json, "poll_seconds", DEFAULT_POLL_SECONDS)));
         } catch (IOException | RuntimeException e) {
             return disabled();

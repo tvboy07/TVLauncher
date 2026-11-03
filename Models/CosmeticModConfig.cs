@@ -30,6 +30,13 @@ public sealed class CosmeticModConfig
     [JsonProperty("local_hat_id")]
     public string? LocalHatId { get; set; }
 
+    /// <summary>PNG de 64x64 copiado a config/; el mod lo usa para el jugador local.</summary>
+    [JsonProperty("local_skin_file")]
+    public string? LocalSkinFile { get; set; }
+
+    [JsonProperty("local_skin_model")]
+    public string? LocalSkinModel { get; set; }
+
     [JsonProperty("poll_seconds")]
     public int PollSeconds { get; set; } = 30;
 }

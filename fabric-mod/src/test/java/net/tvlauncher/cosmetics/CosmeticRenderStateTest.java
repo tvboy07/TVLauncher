@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -53,6 +54,30 @@ class CosmeticRenderStateTest {
         assertEquals(
             Optional.of(new ResolvedCosmetics(null, "hat_tvlauncher")),
             CosmeticRenderState.resolve(3));
+    }
+
+    @Test
+    void renderFlagsAvoidResolvingProfiles() {
+        CosmeticRenderState.initialize(repositoryWith(), config());
+        CosmeticRenderState.setRenderFlags(Map.of(
+            5, new CosmeticRenderState.RenderFlags(true, true, true)));
+
+        assertTrue(CosmeticRenderState.hasCustomCape(5));
+        assertTrue(CosmeticRenderState.hasHat(5));
+        assertTrue(CosmeticRenderState.isLocalPlayer(5));
+        assertFalse(CosmeticRenderState.hasCustomCape(5 + 1));
+    }
+
+    @Test
+    void isLocalPlayerMatchesTheLocalUuid() {
+        CosmeticRenderState.initialize(repositoryWith(), config());
+        CosmeticRenderState.setLocalUuid(CAPE_PLAYER);
+        PlayerIdentityMap.put(7, CAPE_PLAYER);
+        PlayerIdentityMap.put(8, HAT_PLAYER);
+
+        assertTrue(CosmeticRenderState.isLocalPlayer(7));
+        assertFalse(CosmeticRenderState.isLocalPlayer(8));
+        assertFalse(CosmeticRenderState.isLocalPlayer(999));
     }
 
     @Test

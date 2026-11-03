@@ -578,6 +578,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
+            var launchTimer = Stopwatch.StartNew();
+            Log.Info($"[Launch] Botón Jugar: {SelectedInstance.Name} ({SelectedVersion})");
             IsLaunching = true;
             OnPropertyChanged(nameof(CanLaunch));
 
@@ -594,6 +596,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 StatusMessage = "Inyectando cosméticos...";
                 await _cosmeticsService.InjectCosmeticsToInstanceAsync(SelectedInstance);
+                Log.Info($"[Launch] Cosméticos listos en {launchTimer.ElapsedMilliseconds} ms");
             }
             
             StatusMessage = "Lanzando Minecraft...";
@@ -601,6 +604,7 @@ public partial class MainWindowViewModel : ViewModelBase
             OnPropertyChanged(nameof(CanLaunch));
 
             await _minecraftService.LaunchMinecraftAsync(SelectedInstance);
+            Log.Info($"[Launch] Lanzamiento completo en {launchTimer.ElapsedMilliseconds} ms");
 
             // El proceso del juego arrancó con éxito: ocultar el launcher
             // para no competir por CPU/RAM ni generar tráfico de fondo (picos de ping).

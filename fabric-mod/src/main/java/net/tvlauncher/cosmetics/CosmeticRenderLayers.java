@@ -21,7 +21,9 @@ public final class CosmeticRenderLayers {
     }
 
     public static RenderLayer cape() {
-        return RenderLayers.entityCutout(CAPE_TEXTURE);
+        // La capa vanilla usa entitySolid; mantener el mismo pipeline evita
+        // diferencias de culling/alpha con el modelo PlayerCapeModel.
+        return RenderLayers.entitySolid(CAPE_TEXTURE);
     }
 
     public static RenderLayer hat() {

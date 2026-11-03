@@ -70,4 +70,22 @@ class CosmeticsConfigTest {
         assertEquals("hat_tvlauncher", config.localHatId());
         assertEquals(45, config.pollSeconds());
     }
+
+    @Test
+    void readsTheLocalSkinContract() throws Exception {
+        Path file = dir.resolve("skin.json");
+        Files.writeString(file, """
+            {
+              "schema_version": 1,
+              "enabled": true,
+              "local_skin_file": "tvl-cosmetics-skin.png",
+              "local_skin_model": "classic"
+            }
+            """);
+
+        CosmeticsConfig config = CosmeticsConfig.load(file);
+
+        assertEquals("tvl-cosmetics-skin.png", config.localSkinFile());
+        assertEquals("classic", config.localSkinModel());
+    }
 }

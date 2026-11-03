@@ -16,6 +16,9 @@ public static class CosmeticTextureFactory
     /// </summary>
     public static byte[] CreateCapePng()
     {
+        // 64x32 es el tamaño real del atlas de capa que espera PlayerCapeModel.
+        // Pintarla en 64x64 hace que el modelo muestree la mitad inferior
+        // (transparente) y la capa salga comprimida con la base negra.
         var info = new SKImageInfo(64, 32, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var bmp = new SKBitmap(info);
         using var canvas = new SKCanvas(bmp);
@@ -33,18 +36,65 @@ public static class CosmeticTextureFactory
             paint.Shader = null;
         }
 
-        // Marco neón dentro de la ventana que ve la cámara (la capa se gira 180°
-        // y la cara exterior muestrea x 3..13, y 1..17).
+        // Esta es la textura del MOD. La cara exterior del modelo vanilla
+        // muestrea x 1..11; el marco y el logo se centran en esa ventana.
+        paint.Color = SKColor.Parse("#6C5CE7");
+        canvas.DrawRect(new SKRect(2.5f, 0.6f, 3.2f, 16.4f), paint);
+        canvas.DrawRect(new SKRect(9.8f, 0.6f, 10.5f, 16.4f), paint);
+
+        // Bandas de acento.
+        paint.Color = SKColor.Parse("#8B7BFF");
+        canvas.DrawRect(new SKRect(3.2f, 2, 9.8f, 2.7f), paint);
+        canvas.DrawRect(new SKRect(3.2f, 14.3f, 9.8f, 15), paint);
+
+        // Logo TVL centrado en la cara exterior y con sombra para contrastar.
+        paint.Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) ?? SKTypeface.Default;
+        paint.TextSize = 4.8f;
+        paint.TextAlign = SKTextAlign.Center;
+        float logoY = 11.2f;
+        paint.Color = SKColor.Parse("#0B0C10");
+        canvas.DrawText("TVL", 6.5f, logoY + 0.6f, paint);
+        paint.Color = SKColors.White;
+        canvas.DrawText("TVL", 6.5f, logoY, paint);
+        paint.TextAlign = SKTextAlign.Left;
+
+        using var img = SKImage.FromBitmap(bmp);
+        using var data = img.Encode(SKEncodedImageFormat.Png, 90);
+        return data.ToArray();
+    }
+
+    /// <summary>
+    /// Textura de capa para el visor 3D del launcher. Su geometría muestrea la
+    /// ventana x 3..13, distinta de la del modelo vanilla (x 1..11); por eso
+    /// usa un diseño propio para que el marco no quede cortado.
+    /// </summary>
+    public static byte[] CreateViewerCapePng()
+    {
+        var info = new SKImageInfo(64, 32, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var bmp = new SKBitmap(info);
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(SKColors.Transparent);
+
+        using var paint = new SKPaint { IsAntialias = false };
+
+        var colors = new[] { SKColor.Parse("#0F1115"), SKColor.Parse("#3B2E9B"), SKColor.Parse("#6C5CE7") };
+        using (var shader = SKShader.CreateLinearGradient(
+                   new SKPoint(0, 0), new SKPoint(0, 17), colors, null, SKShaderTileMode.Clamp))
+        {
+            paint.Shader = shader;
+            canvas.DrawRect(new SKRect(0, 0, 22, 17), paint);
+            paint.Shader = null;
+        }
+
+        // Ventana del visor: x 3..13. Marco y bandas dentro de ella.
         paint.Color = SKColor.Parse("#6C5CE7");
         canvas.DrawRect(new SKRect(3, 0.6f, 3.7f, 16.4f), paint);
         canvas.DrawRect(new SKRect(12.3f, 0.6f, 13, 16.4f), paint);
 
-        // Bandas de acento.
         paint.Color = SKColor.Parse("#8B7BFF");
         canvas.DrawRect(new SKRect(3.7f, 2, 12.3f, 2.7f), paint);
         canvas.DrawRect(new SKRect(3.7f, 14.3f, 12.3f, 15), paint);
 
-        // Logo TVL: centrado en la cara exterior (x 3..13) y con sombra para contrastar.
         paint.Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) ?? SKTypeface.Default;
         paint.TextSize = 4.8f;
         paint.TextAlign = SKTextAlign.Center;
