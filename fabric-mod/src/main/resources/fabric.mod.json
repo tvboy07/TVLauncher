@@ -10,6 +10,7 @@
   "entrypoints": {
     "client": ["net.tvlauncher.cosmetics.TvCosmeticsClient"]
   },
+  "mixins": ["tvl-cosmetics.mixins.json"],
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": "~1.21.11",

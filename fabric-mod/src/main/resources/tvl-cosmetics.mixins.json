@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.tvlauncher.cosmetics.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "CapeFeatureRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
