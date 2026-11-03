@@ -3,7 +3,8 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net.Http;
+using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using TVLauncher.Models;
 
@@ -11,9 +12,11 @@ namespace TVLauncher.Services;
 
 public class CosmeticsService
 {
+    private const string ModResourceName = "TVLauncher.Resources.tvl-cosmetics.jar";
+
     private readonly ConfigService _configService;
     private readonly ICosmeticsPublisher _publisher;
-    private readonly HttpClient _httpClient;
+    private readonly SemaphoreSlim _modJarLock = new(1, 1);
     private readonly string _cosmeticsConfigPath;
     private readonly string _cosmeticsJarPath;
     private readonly string _cosmeticsSyncPath;
@@ -28,9 +31,6 @@ public class CosmeticsService
     {
         _configService = configService;
         _publisher = publisher;
-        _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "TVLauncher/1.0.0");
-        _httpClient.Timeout = TimeSpan.FromMinutes(10);
         
         string cosmeticsPath = _configService.GetCosmeticsPath();
         _cosmeticsConfigPath = Path.Combine(cosmeticsPath, "cosmetics_config.json");
@@ -48,11 +48,11 @@ public class CosmeticsService
     {
         try
         {
-            // Descargar cosmetics jar si no existe y está habilitado
-            if (_configService.Config.EnableCosmetics && !File.Exists(_cosmeticsJarPath))
-            {
-                await DownloadCosmeticsJarAsync();
-            }
+            if (!_configService.Config.EnableCosmetics)
+                return;
+
+            if (!await EnsureModJarAsync())
+                Console.WriteLine("No se pudo preparar el jar de cosméticos embebido");
         }
         catch (Exception ex)
         {
@@ -60,28 +60,56 @@ public class CosmeticsService
         }
     }
 
-    public async Task DownloadCosmeticsJarAsync()
+    /// <summary>
+    /// Extrae el jar embebido a la carpeta de cosméticos del launcher.
+    /// </summary>
+    /// <returns><c>true</c> si el jar quedó disponible en disco.</returns>
+    internal async Task<bool> EnsureModJarAsync()
     {
+        await _modJarLock.WaitAsync();
         try
         {
-            StatusChanged?.Invoke(this, "Descargando tvl-cosmetics.jar...");
-            
+            using Stream? resource = typeof(CosmeticsService).Assembly
+                .GetManifestResourceStream(ModResourceName);
+            if (resource is null)
+            {
+                Console.WriteLine($"No se encontró el recurso embebido {ModResourceName}");
+                return false;
+            }
+
+            using var buffer = new MemoryStream();
+            await resource.CopyToAsync(buffer);
+            byte[] bytes = buffer.ToArray();
+            if (bytes.Length == 0)
+                return false;
+
             Directory.CreateDirectory(Path.GetDirectoryName(_cosmeticsJarPath)!);
-            
-            string jarUrl = _configService.Config.CosmeticsJarUrl;
-            using var response = await _httpClient.GetAsync(jarUrl);
-            response.EnsureSuccessStatusCode();
-            
-            using var stream = await response.Content.ReadAsStreamAsync();
-            using var fileStream = File.Create(_cosmeticsJarPath);
-            await stream.CopyToAsync(fileStream);
-            
-            StatusChanged?.Invoke(this, "tvl-cosmetics.jar descargado correctamente");
+
+            if (FileMatches(_cosmeticsJarPath, bytes))
+                return true;
+
+            string tempPath = _cosmeticsJarPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                await File.WriteAllBytesAsync(tempPath, bytes);
+                File.Move(tempPath, _cosmeticsJarPath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
+
+            return true;
         }
         catch (Exception ex)
         {
-            StatusChanged?.Invoke(this, $"Error al descargar cosmetics jar: {ex.Message}");
-            Console.WriteLine($"Error: {ex.Message}");
+            Console.WriteLine($"Error al extraer tvl-cosmetics.jar: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            _modJarLock.Release();
         }
     }
 
@@ -92,9 +120,10 @@ public class CosmeticsService
             if (!_configService.Config.EnableCosmetics || !_configService.Config.AutoInjectCosmetics)
                 return;
 
-            if (!File.Exists(_cosmeticsJarPath))
+            if (!await EnsureModJarAsync())
             {
-                await DownloadCosmeticsJarAsync();
+                StatusChanged?.Invoke(this, "No se pudo preparar el mod de cosméticos");
+                return;
             }
 
             string modsPath = Path.Combine(instance.GameDirectory, "mods");
@@ -102,9 +131,9 @@ public class CosmeticsService
             
             string targetPath = Path.Combine(modsPath, "tvl-cosmetics.jar");
             
-            // Copiar jar si no existe o si es más reciente
-            if (!File.Exists(targetPath) || 
-                File.GetLastWriteTimeUtc(_cosmeticsJarPath) > File.GetLastWriteTimeUtc(targetPath))
+            // Copiar el jar solo si el contenido cambió (no por fecha: el jar
+            // embebido conserva la fecha de compilación y podría ser más viejo).
+            if (!FilesMatch(_cosmeticsJarPath, targetPath))
             {
                 File.Copy(_cosmeticsJarPath, targetPath, true);
                 StatusChanged?.Invoke(this, "Cosméticos inyectados en la instancia");
@@ -212,6 +241,34 @@ public class CosmeticsService
         {
             Console.WriteLine($"Error al guardar config de cosméticos: {ex.Message}");
         }
+    }
+
+    private static bool FileMatches(string path, byte[] bytes)
+    {
+        if (!File.Exists(path))
+            return false;
+
+        return string.Equals(
+            ComputeHash(path),
+            Convert.ToHexString(SHA256.HashData(bytes)),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool FilesMatch(string sourcePath, string targetPath)
+    {
+        if (!File.Exists(sourcePath) || !File.Exists(targetPath))
+            return false;
+
+        return string.Equals(
+            ComputeHash(sourcePath),
+            ComputeHash(targetPath),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ComputeHash(string path)
+    {
+        using FileStream stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream));
     }
 }
 

@@ -36,6 +36,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- El mod Fabric viaja dentro del .exe y se extrae a %LOCALAPPDATA% al
+         arrancar, sin depender de ningún CDN. -->
+    <EmbeddedResource Include="Resources\tvl-cosmetics.jar"
+                      LogicalName="TVLauncher.Resources.tvl-cosmetics.jar" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Models\" />
     <Folder Include="Views\" />
     <Folder Include="ViewModels\" />
