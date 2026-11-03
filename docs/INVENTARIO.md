@@ -283,7 +283,7 @@ Notas:
   publican**: solo renderizan sus cosméticos en local.
 - El sombrero puede solaparse con un casco colocado en esta beta.
 - Release candidate local: `publish/win-x64/TVLauncher.exe`, **47.506.718 bytes**,
-  SHA-256 `C6876C36460DF1A6F914582055223A88F6A7CEA7074BA07FE81B6B137CC9D202`.
+  SHA-256 `DEA01B4F83D11A5995644F8854C03CCFADD048A0E65B7F87CDF8E90D012361AE`.
 
 ---
 
