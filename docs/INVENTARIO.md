@@ -193,7 +193,7 @@ ventana como mapa de bits.
 | Navegación interna | `AppPage` + comandos `Show*` | ✅ | Las cuatro secciones cambian de página dentro del shell sin abrir ventanas; `SettingsView`/`ModrinthView` se envuelven en un `Grid` con `IsVisible` para no alterar el `x:DataType` de los bindings compilados |
 | **Visor 3D de skins** | `Controls/SkinPreviewGLControl` (603 líneas) / `SkinsPreviewViewModel` | ✅ | OpenGL vía Silk.NET: cuerpo completo, **capa exterior/hat**, transparencias, geometría cerrada sin huecos, encuadre centrado, rotación con puntero, auto-rotación, animación de caminar, classic/slim. Solo se retocó la paleta del contenedor |
 | Skins y capas | `SkinService` | ✅ | `sessionserver.mojang.com` con fallback a Crafatar; caché de skin/capa y **caché de UUIDs en memoria** (24 h positivos, 5 min negativos) para no repetir llamadas a Mojang |
-| **Armario / cosméticos** | `Views/CosmeticsView` / `SkinsPreviewViewModel` + `CosmeticsService` | ⚠️ | Buscador global por usuario, preview 3D, **Mis Skins** (biblioteca local con equipar/quitar), capa y sombrero exclusivos TVLauncher generados con SkiaSharp, y persistencia de skin/capa/sombrero en `config.json`. El shell recarga el estado equipado y el avatar al volver. La inyección del jar sigue dependiendo del CDN inexistente: `cdn.tvlauncher.net` no resuelve y `147.15.17.142` no expone 80/443 (ver §5) |
+| **Armario / cosméticos** | `Views/CosmeticsView` / `SkinsPreviewViewModel` + `CosmeticsService` | ✅ | Buscador global por usuario, preview 3D, **Mis Skins** (biblioteca local con equipar/quitar), capa y sombrero exclusivos TVLauncher generados con SkiaSharp, y persistencia de skin/capa/sombrero en `config.json`. El shell recarga el estado equipado y el avatar al volver. El mod Fabric (`tvl-cosmetics.jar`) va **embebido en el `.exe`** y se inyecta en la instancia; el backend global es Supabase (`cosmetics_profiles` + Edge Function `publish-cosmetics`). Ver `docs/SUPABASE_SETUP.md` |
 | Gestor de instancias | `CreateInstanceWindow`, `InstanceEditWindow` | ✅ | Crear/editar/borrar; versión, modloader + versión de loader, RAM mín/máx, resolución, `JVMArgs`, Java, directorio. Modales restilizados; el formulario va dentro de un `ScrollViewer` con los botones anclados, así que se puede guardar en pantallas ajustadas |
 | Wizard de primera ejecución | `SetupWizardWindow` / `SetupWizardViewModel` | ✅ | Gateado por `AppConfig.FirstRun`, `CompleteFirstRun()` |
 | Cuentas | `AccountManagerWindow` / `AccountManagerViewModel` | ✅ | Añadir/cambiar/eliminar cuentas Microsoft; modal restilizado |
@@ -213,7 +213,7 @@ ventana como mapa de bits.
 | **SHA1 en descargas** | ✅ | `EnsureFileAsync(url, path, size, sha1, ct, fatal)` valida el `.part` **antes** de renombrarlo; si no coincide, borra el temporal y falla. Cubre `client.jar`, librerías, nativas, asset index, log config, metadata de versión y assets |
 | Política de reutilización | ⚠️ | Los archivos presentes se reutilizan **por tamaño** (revalidar todo cuesta ~12 s: 1.214 MB de assets + 536 MB de librerías + 187 MB de versiones) |
 | Rechazo de contenido corrupto | ✅ | Probado contra servidor HTTP local real: hash incorrecto → no se publica ni queda `.part` |
-| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **169 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
+| **Suite xUnit** | ✅ | `tests/TVLauncher.Tests`, **191 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
 | Aislamiento de tests | ✅ | `InternalsVisibleTo`, `tests/**` excluido del glob de compilación, `EnsureProfileJar` parametrizado, `ConfigService` con directorio inyectable, `ModrinthBrowserViewModel` con ctor interno sin carga remota |
 | Verificación por commit | ✅ | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado, 95 tras los arreglos de UI y Modrinth, 104 con cancelación y SHA-512, 114 con scopes y PKCE, 169 con el rediseño de UI) |
 | CI | ❌ | No hay pipeline |
@@ -261,16 +261,29 @@ ventana como mapa de bits.
 | Endpoint | Valor actual | Verificación |
 |---|---|---|
 | Servidor SMP por defecto | `147.15.17.142:25565` | TCP **abierto** (comprobado) |
-| CDN de cosméticos | `https://cdn.tvlauncher.net/cosmetics/tvl-cosmetics.jar` | El dominio **no resuelve**; `147.15.17.142` tiene **80 y 443 cerrados** |
+| Mod in-game | `Resources/tvl-cosmetics.jar` embebido en el `.exe` | Se extrae a `%LOCALAPPDATA%\TVLauncher\cosmetics` y se copia a `{instance}/mods`; no se descarga nada |
+| Backend de cosméticos | Supabase `cosmetics_profiles` + Edge Function `publish-cosmetics` | URL y anon key se configuran en Ajustes → Sincronización in-game; guía en `docs/SUPABASE_SETUP.md` |
 
 Notas:
 
 - El SMP por defecto es configurable en Ajustes y se escribe en `servers.dat` de cada instancia.
-- Los cosméticos degradan de forma controlada: si la descarga falla se registra el error y la app
-  sigue funcionando (`CosmeticsService.Initialize` captura la excepción).
-- **Pendiente de decisión:** o se publica el jar en un host con 80/443 y certificado válido, o se
-  retira el CDN de la configuración por defecto. Servir por IP con HTTPS falla la validación de
-  certificado salvo que el certificado incluya la IP como SAN.
+- El CDN `cdn.tvlauncher.net` queda **retirado**: ni el launcher ni el mod descargan el jar.
+- La `service_role` de Supabase nunca se incluye en el launcher, en el mod ni en el repositorio;
+  la Edge Function la usa solo en el servidor.
+- Los cosméticos degradan de forma controlada: sin Supabase el juego funciona y el jugador local
+  sigue viendo lo que tenga equipado.
+
+### Cosméticos in-game (beta)
+
+- El launcher escribe `config/tvl-cosmetics.json` en cada instancia con `schema_version`, `enabled`,
+  `supabase_url`, `supabase_anon_key`, `local_cape_id`, `local_hat_id` y `poll_seconds`.
+- Al equipar, desequipar o lanzar, el launcher publica los IDs en Supabase con un debounce de 500 ms
+  (el lanzamiento publica sin esperar). Un fallo de red no bloquea el juego.
+- Las cuentas Microsoft se publican y se ven desde cualquier servidor. Las cuentas **offline no
+  publican**: solo renderizan sus cosméticos en local.
+- El sombrero puede solaparse con un casco colocado en esta beta.
+- Release candidate local: `publish/win-x64/TVLauncher.exe`, **47.506.718 bytes**,
+  SHA-256 `C6876C36460DF1A6F914582055223A88F6A7CEA7074BA07FE81B6B137CC9D202`.
 
 ---
 
@@ -337,4 +350,5 @@ dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 169/169
 2. **El activo principal es el motor propio**: control total de classpath, nativos, argumentos y diagnóstico; permite arreglar crashes que un launcher de librería oculta.
 3. **La deuda más cara es la operativa**: sin CI ni matriz automatizada, cada regresión se detecta jugando.
 4. **Riesgo de seguridad contenido**: repo limpio y `accounts.json` cifrado con AES-256-GCM (clave local, migración automática). La clave vive en el mismo directorio: protege el archivo, no a un atacante que ya ejecute código como el usuario.
-5. **Un endpoint del producto no existe** (CDN de cosméticos): decidir entre publicarlo o retirarlo antes de distribuir.
+5. **El CDN de cosméticos ya no existe y se retiró**: el jar va embebido en el `.exe`. El nuevo
+   punto único de fallo es Supabase; sin él se pierden los cosméticos remotos, no el juego.

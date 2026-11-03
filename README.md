@@ -13,7 +13,7 @@ TVLauncher es un launcher ligero, moderno y de código abierto para Minecraft, c
 - **Autenticación dual** - Soporta cuentas offline y autenticación con Microsoft (OAuth2).
 - **Soporte para modloaders** - Integración con Forge, Fabric y NeoForge vía [CmlLib.Core](https://github.com/CmlLib/CmlLib.Core).
 - **Visor 3D de Skins** - Previsualización en tiempo real del skin con modelo completo (cabeza, cuerpo, brazos, piernas), capa exterior/hat y soporte para transparencias.
-- **Sistema de cosméticos** - Inyección automática de cosméticos personalizados visible en multijugador.
+- **Sistema de cosméticos** - Capa y sombrero exclusivos de TVLauncher, inyectados como mod Fabric embebido y sincronizados entre jugadores mediante Supabase.
 - **Buscador de mods con Modrinth** - Busca, filtra y descarga mods directamente a tu instancia.
 - **Asignación de RAM** - Control total sobre la memoria asignada por instancia.
 - **Inyección automática de servidor SMP** - Añade automáticamente servidores a `servers.dat`.
