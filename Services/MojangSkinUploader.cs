@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
+using TVLauncher.Helpers;
 using TVLauncher.Models;
 
 namespace TVLauncher.Services;
@@ -94,7 +95,7 @@ public sealed class MojangSkinUploader : ISkinUploader
                 (int)response.StatusCode,
                 string.IsNullOrWhiteSpace(body)
                     ? $"Mojang rechazó la skin ({(int)response.StatusCode})."
-                    : body.Trim());
+                    : SecretMasker.Scrub(body).Trim());
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

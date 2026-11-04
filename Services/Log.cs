@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using TVLauncher.Helpers;
 
 namespace TVLauncher.Services;
 
@@ -22,7 +23,10 @@ public static class Log
 
     private static void Write(string level, string message)
     {
-        var line = $"[{DateTime.Now:HH:mm:ss.fff}] [{level}] {message}";
+        // Defensa en profundidad: ningún token debe llegar al log aunque una
+        // llamada concreta olvide enmascararlo.
+        string safeMessage = SecretMasker.Scrub(message);
+        var line = $"[{DateTime.Now:HH:mm:ss.fff}] [{level}] {safeMessage}";
         Console.WriteLine(line);
 
         try

@@ -10,6 +10,7 @@ principal y que, si falla, los logs digan exactamente por qué.
 
 - Lanzamiento propio de Vanilla, Forge, NeoForge y Fabric.
 - Cuentas offline y Microsoft (OAuth con PKCE y fallback a device code).
+- Cuentas cifradas con AES-256-GCM y clave protegida con DPAPI en Windows.
 - Instancias aisladas, RAM configurable, Java detectado automáticamente.
 - Visor 3D de skins, armario y biblioteca de skins.
 - Capa y sombrero TVLauncher en Fabric 1.21.11.
@@ -26,10 +27,10 @@ principal y que, si falla, los logs digan exactamente por qué.
 
 ## Paquete de esta beta
 
-- `publish/win-x64/TVLauncher.exe`: **47.519.006 bytes**, SHA-256
-  `AC7B26FDDBD53AA102F4B8612B53D7BD1927808C2F461771124A1445738FF1BE`.
-- `artifacts/TVLauncher-beta-win-x64.zip`: **54.614.207 bytes**, SHA-256
-  `E73630917589C1FFDE9EAFEB0B6F157046A4065C2FB99E43ACF07E034A47BCEC`.
+- `publish/win-x64/TVLauncher.exe`: **47.539.384 bytes**, SHA-256
+  `CFC7455E3286B685F8626A8F24236DB0D94F9D19C75FD4864589DA7074E3B08A`.
+- `artifacts/TVLauncher-beta-win-x64.zip`: **54.655.962 bytes**, SHA-256
+  `9882EBAA6EA9687DE034C11BC22466B4C76C8AAE7A57978D625CC84695998DF9`.
 
 ## Cómo ejecutar la beta
 
@@ -79,7 +80,9 @@ bloqueo del `.exe` sin firmar.
 - **Fabric 1.21.11** es la única versión soportada por el mod de cosméticos.
 - **Firma:** el ejecutable todavía no está firmado; Smart App Control puede bloquearlo.
 - **Matriz de arranque:** la cobertura de versiones se verifica a mano.
-- **Supabase:** no incluir nunca la `service_role` en el launcher, el mod ni el repo.
+- **Supabase:** al activarlo, el token de Minecraft transita tu backend. Usá solo
+  uno que controles y no incluyas nunca la `service_role` en el launcher, el mod ni
+  el repo. Ver [`SECURITY.md`](SECURITY.md).
 
 ## Reportar un problema
 
@@ -92,4 +95,6 @@ Incluir:
 5. Si es de cosméticos: `config/tvl-cosmetics.json`, `logs/latest.log` y si la cuenta es
    Microsoft u offline.
 
-No adjuntar `accounts.json`, `accounts.key` ni tokens.
+Los logs enmascaran tokens (`Bearer`, JWT, `--accessToken`), pero revisalos antes de
+compartirlos: pueden contener rutas y nombres de usuario. No adjuntar `accounts.json`,
+`accounts.key` ni tokens.

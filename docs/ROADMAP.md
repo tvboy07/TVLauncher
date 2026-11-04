@@ -50,7 +50,7 @@ fabric-mod/               Mod cliente Fabric 1.21.11
 ## Estado actual
 
 - Build: **0 errores** (advertencias preexistentes de MVVM/Avalonia/nullable).
-- Tests .NET: **203** en `tests/TVLauncher.Tests` (xUnit, sin red ni archivos reales del juego).
+- Tests .NET: **207** en `tests/TVLauncher.Tests` (xUnit, sin red ni archivos reales del juego).
 - Tests del mod: **35** (JUnit + Gradle).
 - Arranque verificado de extremo a extremo (hasta el menú principal):
 

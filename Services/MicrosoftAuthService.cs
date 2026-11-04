@@ -62,13 +62,16 @@ public class MicrosoftAuthService
 
     private readonly ConfigService? _configService;
 
-    private readonly HttpClient _http = new()
-    {
-        Timeout = TimeSpan.FromSeconds(30)
-    };
+    private readonly HttpClient _http;
 
     public MicrosoftAuthService(ConfigService? configService = null)
+        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(30) }, configService)
     {
+    }
+
+    internal MicrosoftAuthService(HttpClient http, ConfigService? configService = null)
+    {
+        _http = http;
         _configService = configService;
     }
 
@@ -258,7 +261,7 @@ public class MicrosoftAuthService
         {
             var error = JsonSerializer.Deserialize<MicrosoftTokenError>(json);
             throw new Exception(
-                $"Error al canjear el código ({(int)response.StatusCode}): {error?.ErrorDescription ?? error?.Error ?? json}");
+                $"Error al canjear el código ({(int)response.StatusCode}): {SecretMasker.Scrub(error?.ErrorDescription ?? error?.Error ?? json)}");
         }
 
         return JsonSerializer.Deserialize<MicrosoftTokenResponse>(json)
@@ -480,10 +483,10 @@ public class MicrosoftAuthService
             return $"Error autenticándose con Minecraft (403): la app de Azure {clientId} no está " +
                    "aprobada para la API de Minecraft. Solicita acceso en " +
                    "https://aka.ms/mce-reviewappid o configura otro Client ID en Ajustes. " +
-                   $"Detalle: {body}";
+                   $"Detalle: {SecretMasker.Scrub(body)}";
         }
 
-        return $"Error autenticándose con Minecraft ({statusCode}): {body}";
+        return $"Error autenticándose con Minecraft ({statusCode}): {SecretMasker.Scrub(body)}";
     }
 
     private async Task<DeviceCodeResponse> RequestDeviceCodeAsync(CancellationToken cancellationToken)
@@ -494,7 +497,7 @@ public class MicrosoftAuthService
         if (!response.IsSuccessStatusCode)
         {
             throw new Exception(
-                $"No se pudo iniciar el Device Code Flow ({(int)response.StatusCode}): {await response.Content.ReadAsStringAsync(cancellationToken)}");
+                $"No se pudo iniciar el Device Code Flow ({(int)response.StatusCode}): {SecretMasker.Scrub(await response.Content.ReadAsStringAsync(cancellationToken))}");
         }
 
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -534,7 +537,7 @@ public class MicrosoftAuthService
                 continue;
             }
 
-            throw new Exception($"Error de autenticación Microsoft ({(int)response.StatusCode}): {error?.ErrorDescription ?? error?.Error ?? json}");
+            throw new Exception($"Error de autenticación Microsoft ({(int)response.StatusCode}): {SecretMasker.Scrub(error?.ErrorDescription ?? error?.Error ?? json)}");
         }
 
         throw new Exception("Tiempo de autenticación agotado");
@@ -610,10 +613,14 @@ public class MicrosoftAuthService
         return result ?? throw new Exception("Error al autenticar con Minecraft Services: respuesta vacía");
     }
 
-    private async Task<MinecraftProfile> GetMinecraftProfileAsync(string accessToken, CancellationToken cancellationToken)
+    internal async Task<MinecraftProfile> GetMinecraftProfileAsync(string accessToken, CancellationToken cancellationToken)
     {
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var response = await _http.GetAsync(MinecraftProfileUrl, cancellationToken);
+        // Nunca usar DefaultRequestHeaders: el header sobrevive en el HttpClient
+        // reutilizado y podría enviar el token de Minecraft a peticiones
+        // posteriores de Microsoft/Xbox.
+        using var request = new HttpRequestMessage(HttpMethod.Get, MinecraftProfileUrl);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var response = await _http.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
             throw new Exception($"Error obteniendo perfil de Minecraft ({(int)response.StatusCode}). ¿La cuenta posee Minecraft Java Edition?");

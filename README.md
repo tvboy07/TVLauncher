@@ -88,6 +88,7 @@ TVLauncher/
 - [`docs/ROADMAP.md`](docs/ROADMAP.md): visión, fases y estado.
 - [`docs/INVENTARIO.md`](docs/INVENTARIO.md): inventario técnico detallado.
 - [`docs/BETA.md`](docs/BETA.md): limitaciones y pruebas de la beta.
+- [`docs/SECURITY.md`](docs/SECURITY.md): cuentas, tokens, DPAPI y Supabase.
 - [`docs/SUPABASE_SETUP.md`](docs/SUPABASE_SETUP.md): backend opcional de cosméticos.
 
 ## Licencia

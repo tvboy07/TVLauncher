@@ -17,7 +17,7 @@
 |---|---|
 | Stack | C# / .NET 8.0 Â· Avalonia UI 11.1.3 Â· MVVM (CommunityToolkit) Â· DI (Microsoft.Extensions) |
 | CÃ³digo fuente propio | **55 archivos / 9.443 lÃ­neas** (sin `bin`, `obj` ni tests) |
-| Tests .NET | **25 archivos / 2.775 líneas / 203 casos** (xUnit) |
+| Tests .NET | **25 archivos / 2.775 líneas / 207 casos** (xUnit) |
 | Tests del mod | **35 casos** (JUnit/Gradle) |
 | Dependencias NuGet | 20 (Avalonia, Silk.NET.OpenGL, SkiaSharp, Newtonsoft.Json, CmlLib.Core residual) |
 | Commits | 15 previos + este documento |
@@ -214,11 +214,11 @@ ventana como mapa de bits.
 | **SHA1 en descargas** | âœ… | `EnsureFileAsync(url, path, size, sha1, ct, fatal)` valida el `.part` **antes** de renombrarlo; si no coincide, borra el temporal y falla. Cubre `client.jar`, librerÃ­as, nativas, asset index, log config, metadata de versiÃ³n y assets |
 | PolÃ­tica de reutilizaciÃ³n | âš ï¸ | Los archivos presentes se reutilizan **por tamaÃ±o** (revalidar todo cuesta ~12 s: 1.214 MB de assets + 536 MB de librerÃ­as + 187 MB de versiones) |
 | Rechazo de contenido corrupto | âœ… | Probado contra servidor HTTP local real: hash incorrecto â†’ no se publica ni queda `.part` |
-| **Suite xUnit** | âœ… | `tests/TVLauncher.Tests`, **203 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
+| **Suite xUnit** | âœ… | `tests/TVLauncher.Tests`, **207 casos**, sin red externa ni archivos reales del juego (`TempDirectory` aislado) |
 | Aislamiento de tests | âœ… | `InternalsVisibleTo`, `tests/**` excluido del glob de compilaciÃ³n, `EnsureProfileJar` parametrizado, `ConfigService` con directorio inyectable, `ModrinthBrowserViewModel` con ctor interno sin carga remota |
 | VerificaciÃ³n por commit | âœ… | Cada commit compilado y testeado en worktree aislado (7 tests en `dc1ae0a`, 51 en `7133b01`, 82 con cifrado, 95 tras los arreglos de UI y Modrinth, 104 con cancelaciÃ³n y SHA-512, 114 con scopes y PKCE, 169 con el rediseÃ±o de UI) |
 | CI | âŒ | No hay pipeline |
-### Composición de la suite (203 casos)
+### Composición de la suite (207 casos)
 ### ComposiciÃ³n de la suite (169 casos = 126 mÃ©todos, 9 `[Theory]` con 52 entradas en total)
 
 | Archivo | Casos | QuÃ© garantiza |
@@ -283,10 +283,10 @@ Notas:
 - Las cuentas Microsoft se publican y se ven desde cualquier servidor. Las cuentas **offline no
   publican**: solo renderizan sus cosmÃ©ticos en local.
 - El sombrero puede solaparse con un casco colocado en esta beta.
-- Release candidate local: `publish/win-x64/TVLauncher.exe`, **47.519.006 bytes**,
-  SHA-256 `AC7B26FDDBD53AA102F4B8612B53D7BD1927808C2F461771124A1445738FF1BE`.
-- Paquete beta: `artifacts/TVLauncher-beta-win-x64.zip`, **54.614.207 bytes**,
-  SHA-256 `E73630917589C1FFDE9EAFEB0B6F157046A4065C2FB99E43ACF07E034A47BCEC`.
+- Release candidate local: `publish/win-x64/TVLauncher.exe`, **47.539.384 bytes**,
+  SHA-256 `CFC7455E3286B685F8626A8F24236DB0D94F9D19C75FD4864589DA7074E3B08A`.
+- Paquete beta: `artifacts/TVLauncher-beta-win-x64.zip`, **54.655.962 bytes**,
+  SHA-256 `9882EBAA6EA9687DE034C11BC22466B4C76C8AAE7A57978D625CC84695998DF9`.
   Incluye `TVLauncher.exe`, `beta-dotnet/` + `Iniciar-TVLauncher.cmd` (workaround de
   Smart App Control) y `LEEME-BETA.md`.
 
@@ -341,7 +341,7 @@ git clone https://github.com/tvboy07/TVLauncher.git
 cd TVLauncher
 git checkout <commit>
 
-dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 203/203
+dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 207/207
 dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 169/169
 
 # Datos de usuario (fuera del repo):
@@ -357,4 +357,5 @@ dotnet test tests\TVLauncher.Tests\TVLauncher.Tests.csproj  # 169/169
 4. **Riesgo de seguridad contenido**: repo limpio y `accounts.json` cifrado con AES-256-GCM (clave local, migraciÃ³n automÃ¡tica). La clave vive en el mismo directorio: protege el archivo, no a un atacante que ya ejecute cÃ³digo como el usuario.
 5. **El CDN de cosmÃ©ticos ya no existe y se retirÃ³**: el jar va embebido en el `.exe`. El nuevo
    punto Ãºnico de fallo es Supabase; sin Ã©l se pierden los cosmÃ©ticos remotos, no el juego.
+
 

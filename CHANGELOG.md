@@ -18,6 +18,16 @@ Primera beta pública del launcher con núcleo de lanzamiento propio.
 - Normalización y remapeo de skins legacy 64x32.
 - Interruptor real de cosméticos en Ajustes.
 
+### Seguridad
+
+- El token de Minecraft ya no queda en `DefaultRequestHeaders` de un `HttpClient`
+  reutilizado: cada petición usa su propio header.
+- Enmascarado global de logs (`Bearer`, JWT, `--accessToken`, `access_token=...`).
+- La clave de `accounts.json` se protege con DPAPI en Windows, con migración
+  automática desde la clave plana anterior.
+- Al eliminar una cuenta se borran sus tokens en memoria.
+- Documento `docs/SECURITY.md` con modelo de amenazas y advertencia de Supabase.
+
 ### Corregido
 
 - La capa del launcher se dibuja con la textura de 64x32 que espera el modelo vanilla.

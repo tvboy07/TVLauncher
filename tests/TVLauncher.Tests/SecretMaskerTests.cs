@@ -87,4 +87,31 @@ public class SecretMaskerTests
     {
         Assert.Equal(string.Empty, SecretMasker.MaskJson(json));
     }
+
+    [Fact]
+    public void Scrub_OcultaBearerJwtYArgumentosDeAcceso()
+    {
+        const string text =
+            "Authorization: Bearer EwBwA8l6BAAU1234567890 " +
+            "jwt=eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.firmaSegura " +
+            "--accessToken 1234567890abcdef access_token=ABCDEF1234567890";
+
+        string masked = SecretMasker.Scrub(text);
+
+        Assert.DoesNotContain("EwBwA8l6BAAU1234567890", masked);
+        Assert.DoesNotContain("eyJhbGciOiJSUzI1NiJ9", masked);
+        Assert.DoesNotContain("1234567890abcdef", masked);
+        Assert.DoesNotContain("ABCDEF1234567890", masked);
+        Assert.Contains("Bearer ***", masked);
+        Assert.Contains("--accessToken ***", masked);
+        Assert.Contains("access_token=***", masked);
+    }
+
+    [Fact]
+    public void Scrub_NoRompeTextoNormal()
+    {
+        const string text = "Java listo en 1200 ms; Minecraft iniciado correctamente.";
+
+        Assert.Equal(text, SecretMasker.Scrub(text));
+    }
 }

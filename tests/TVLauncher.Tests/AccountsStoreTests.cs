@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using TVLauncher.Models;
@@ -64,7 +65,32 @@ public sealed class AccountsStoreTests
         Assert.DoesNotContain(Token, raw, StringComparison.Ordinal);
         Assert.DoesNotContain("Notch", raw, StringComparison.Ordinal);
         Assert.True(File.Exists(store.KeyPath));
-        Assert.Equal(32, new FileInfo(store.KeyPath).Length);
+        string keyEnvelope = File.ReadAllText(store.KeyPath);
+        Assert.Contains("\"version\":1", keyEnvelope);
+        Assert.Contains(
+            OperatingSystem.IsWindows() ? "\"protection\":\"dpapi\"" : "\"protection\":\"plain\"",
+            keyEnvelope);
+    }
+
+    [Fact]
+    public void Load_MigratesALegacyRawKeyToTheProtectedEnvelope()
+    {
+        using var dir = new TempDirectory();
+        byte[] key = RandomNumberGenerator.GetBytes(AccountsCipher.KeySizeBytes);
+        string encrypted = AccountsCipher.Seal(
+            JsonConvert.SerializeObject(new[] { Sample() }), key);
+        dir.WriteFile("accounts.json", encrypted);
+        File.WriteAllBytes(Path.Combine(dir.Root, "accounts.key"), key);
+
+        var loaded = new AccountsStore(dir.Root).Load();
+
+        Assert.Equal("Notch", Assert.Single(loaded).Username);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Contains(
+                "\"protection\":\"dpapi\"",
+                File.ReadAllText(Path.Combine(dir.Root, "accounts.key")));
+        }
     }
 
     [Fact]

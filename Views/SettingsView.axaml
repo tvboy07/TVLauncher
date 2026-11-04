@@ -70,6 +70,9 @@
                         <TextBlock Text="ANON KEY" Classes="label"/>
                         <TextBox Text="{Binding CosmeticsSupabaseAnonKey}"
                                  Watermark="Clave pública anon"/>
+                        <TextBlock Classes="caption"
+                                   TextWrapping="Wrap"
+                                   Text="Seguridad: al activar Supabase, el launcher envía tu token de Minecraft a ese backend para verificar tu identidad. Usá solo un backend que controles. No pegues la service_role acá."/>
                     </StackPanel>
                 </StackPanel>
             </Border>

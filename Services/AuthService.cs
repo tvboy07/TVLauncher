@@ -242,6 +242,11 @@ public class AuthService
         if (account != null)
         {
             bool wasActive = account.IsActive;
+
+            // No conservar credenciales de una cuenta que el usuario quitó.
+            account.AccessToken = string.Empty;
+            account.RefreshToken = string.Empty;
+
             _accounts.Remove(account);
             
             if (wasActive && _accounts.Count > 0)
